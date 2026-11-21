@@ -23,3 +23,31 @@ curl: (6) Could not resolve host: huggingface.co
 curl: (6) Could not resolve host: huggingface.co
 curl: (6) Could not resolve host: huggingface.co
 curl: (56) schannel: server closed abruptly (missing close_notify)
+curl: (28) Operation too slow. Less than 1000 bytes/sec transferred the last 60 seconds
+curl: (56) Recv failure: Connection was reset
+>> gpt2/config.json
+>> gpt2/generation_config.json
+>> gpt2/tokenizer.json
+>> gpt2/tokenizer_config.json
+>> gpt2/vocab.json
+>> gpt2/merges.txt
+>> gpt2/model.safetensors
+curl: (56) schannel: server closed abruptly (missing close_notify)
+curl: (56) schannel: server closed abruptly (missing close_notify)
+curl: (56) Recv failure: Connection was reset
+curl: (56) schannel: server closed abruptly (missing close_notify)
+curl: (28) Operation too slow. Less than 1000 bytes/sec transferred the last 60 seconds
+curl: (56) schannel: server closed abruptly (missing close_notify)
+curl: (56) schannel: server closed abruptly (missing close_notify)
+>> sentence-transformers/all-MiniLM-L6-v2/config.json
+>> sentence-transformers/all-MiniLM-L6-v2/modules.json
+>> sentence-transformers/all-MiniLM-L6-v2/sentence_bert_config.json
+>> sentence-transformers/all-MiniLM-L6-v2/config_sentence_transformers.json
+>> sentence-transformers/all-MiniLM-L6-v2/tokenizer.json
+>> sentence-transformers/all-MiniLM-L6-v2/tokenizer_config.json
+>> sentence-transformers/all-MiniLM-L6-v2/vocab.txt
+>> sentence-transformers/all-MiniLM-L6-v2/special_tokens_map.json
+>> sentence-transformers/all-MiniLM-L6-v2/1_Pooling/config.json
+>> sentence-transformers/all-MiniLM-L6-v2/model.safetensors
+curl: (56) schannel: server closed abruptly (missing close_notify)
+DONE

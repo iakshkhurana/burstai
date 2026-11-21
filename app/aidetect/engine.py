@@ -24,12 +24,16 @@ from .lm import SCORER, span_stats
 from .stylometry import features, style_score
 
 # ---- calibration (gpt2 observer / gpt2-medium performer) -----------------------------
-BINO_MID = 0.98     # Binoculars score at which p = 0.5   (lower score = more AI-like)
-BINO_SCALE = 0.07   # logistic width
-PPL_MID = 2.75      # observer log-perplexity (nats) at which p = 0.5 (ppl ~ 16)
-PPL_SCALE = 0.45
-SENT_BINO_MID = 1.00
-SENT_BINO_SCALE = 0.12
+# Binoculars score at which p = 0.5 (lower = more AI-like). Measured with distilgpt2 observer /
+# gpt2 performer on samples/: AI 0.68-0.75, human 0.79-0.96 -> midpoint 0.775.
+BINO_MID = 0.775
+BINO_SCALE = 0.035
+# Observer log-perplexity (nats) at which p = 0.5. Measured on samples/ with distilgpt2:
+# AI texts 2.9-3.6, human texts 4.0-5.8  ->  midpoint 3.8. (gpt2 runs ~0.3 lower; re-run tests/calibrate.)
+PPL_MID = 3.8
+PPL_SCALE = 0.35
+SENT_BINO_MID = 0.80
+SENT_BINO_SCALE = 0.08
 
 W_BINO, W_PPL, W_STYLE, W_LLM = 0.50, 0.15, 0.35, 0.30
 MIN_WORDS_CONFIDENT = 120
@@ -87,7 +91,7 @@ async def detect_ai(text: str, *, use_llm_judge: bool = True, sentences: list[Se
             elif p_bino < 0.25:
                 reasons.insert(0, "Token predictability pattern (Binoculars) resembles human writing")
         else:
-            parts.append((W_BINO * 0.6, p_ppl))  # perplexity-only mode: lean on it a bit more
+            parts.append((W_BINO * 0.8, p_ppl))  # perplexity-only mode: perplexity carries the LM signal
             warnings.append("Binoculars disabled (performer model not loaded); using perplexity only.")
         if stats.ppl < 8 and feats["words"] > 60:
             reasons.append("Very low perplexity: text is extremely predictable to the language model")
@@ -127,8 +131,7 @@ async def detect_ai(text: str, *, use_llm_judge: bool = True, sentences: list[Se
         arr = np.log(np.array(ppls))
         burst = float(arr.std() / max(1e-6, arr.mean()))
         signals["burstiness"] = round(burst, 3)
-        if burst < 0.18:
-            reasons.append("Low burstiness: every sentence is about equally predictable")
+        # NOTE: burstiness did not separate human from AI on the bundled samples; shown as a signal only.
 
     words = feats["words"]
     if words < 50:
@@ -138,7 +141,7 @@ async def detect_ai(text: str, *, use_llm_judge: bool = True, sentences: list[Se
     else:
         confidence = "high" if abs(p - 0.5) > 0.3 else "medium"
 
-    if p >= 0.70:
+    if p >= 0.60:
         verdict = "Likely AI-generated"
     elif p <= 0.35:
         verdict = "Likely human-written"
