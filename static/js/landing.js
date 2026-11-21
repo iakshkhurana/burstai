@@ -10,8 +10,16 @@
     cta.textContent = CTA[mode];
   }
   document.querySelectorAll(".mode").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
-  document.querySelectorAll("a[data-mode]").forEach((a) => a.addEventListener("click", () => { setMode(a.dataset.mode); setTimeout(() => ta.focus(), 350); }));
-  document.querySelectorAll('a[href="#scan"]:not([data-mode])').forEach((a) => a.addEventListener("click", () => setTimeout(() => ta.focus(), 350)));
+  // Scroll the *page* to the scan box (never the hero card itself) and focus the textarea.
+  function goScan(e, m) {
+    if (e) e.preventDefault();
+    if (m) setMode(m);
+    const top = box.getBoundingClientRect().top + window.scrollY - 24;
+    window.scrollTo({ top, behavior: "smooth" });
+    setTimeout(() => ta.focus({ preventScroll: true }), 450);
+  }
+  document.querySelectorAll('a[href="#scan"]').forEach((a) => a.addEventListener("click", (e) => goScan(e, a.dataset.mode)));
+  if (location.hash === "#scan") setTimeout(() => goScan(null, null), 50);
 
   ta.addEventListener("input", () => { count.textContent = `${B.words(ta.value).toLocaleString()} / no limit words`; });
 
