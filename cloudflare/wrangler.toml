@@ -20,7 +20,7 @@ database_id = "c34acf33-fe51-4f8a-82e1-b30cde48466e"
 
 [vars]
 # Public URL of the deployed site (no trailing slash) - used for canonical / sitemap / OG links.
-PUBLIC_URL = "https://burstai.example.workers.dev"
+PUBLIC_URL = "https://burstai.akshk845.workers.dev"
 # Where the Python engine (app/main.py) is running. Workers cannot run PyTorch, so the engine
 # lives on any always-on machine and is reached over HTTPS, e.g. a Cloudflare Tunnel to your
 # laptop/PC, a free Oracle/Fly/Render VM, or a cheap VPS. See DEPLOY.md.
