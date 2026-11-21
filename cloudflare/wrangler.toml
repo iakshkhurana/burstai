@@ -1,0 +1,28 @@
+name = "burstai"
+main = "src/worker.js"
+compatibility_date = "2026-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+# The whole ./static folder is served as static assets by the Worker (free, cached at the edge).
+[assets]
+directory = "../static"
+binding = "ASSETS"
+
+# D1 (free tier) holds users, sessions, saved scans and saved reports.
+# Create it once:  wrangler d1 create burstai   -> paste the database_id below, then:
+#                  wrangler d1 execute burstai --remote --file=schema.sql
+[[d1_databases]]
+binding = "DB"
+database_name = "burstai"
+database_id = "REPLACE_WITH_YOUR_D1_ID"
+
+[vars]
+# Public URL of the deployed site (no trailing slash) - used for canonical / sitemap / OG links.
+PUBLIC_URL = "https://burstai.example.workers.dev"
+# Where the Python engine (app/main.py) is running. Workers cannot run PyTorch, so the engine
+# lives on any always-on machine and is reached over HTTPS, e.g. a Cloudflare Tunnel to your
+# laptop/PC, a free Oracle/Fly/Render VM, or a cheap VPS. See DEPLOY.md.
+ENGINE_URL = "https://engine.example.com"
+
+# Secrets (set with `wrangler secret put NAME`):
+#   ENGINE_TOKEN   shared secret the Worker sends as X-Engine-Token; set BURSTAI_ENGINE_TOKEN on the engine to the same value

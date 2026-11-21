@@ -1,0 +1,11 @@
+Okay so I finally fixed the bike. Took me three weekends, which is embarrassing because the actual problem turned out to be a bent derailleur hanger, not the derailleur itself. I'd ordered a whole new Shimano unit (forty quid, ugh) before my neighbour Dev wandered over, looked at it for about four seconds and said "mate, your hanger's bent." He was right. He bent it back with an adjustable spanner and a bit of swearing.
+
+Anyway. The reason I'm writing this down is that I keep forgetting what I learned last time and then re-learning it from YouTube at 11pm. So, notes to future me:
+
+The B-tension screw is the one at the back. Not the two limit screws. I confused these AGAIN. If the chain is rattling on the smallest cog it's probably the H limit screw, turn it clockwise a quarter turn, test, repeat. Don't do a full turn like I did and then wonder why the chain won't go onto the small cog at all.
+
+Cable tension: shift to the smallest cog first, undo the barrel adjuster-ish, pull the cable taut, clamp. Then fine tune with the barrel. Mine needed about a turn and a half anti-clockwise in the end.
+
+Also, buy the cheap hanger alignment tool. It's like fifteen pounds. Dev has one and now I understand why he's so smug.
+
+I rode it to work Tuesday and it was genuinely silent for the first time since February. Small victories. The brakes still squeal a bit in the rain but honestly that's a problem for a different weekend, and probably a different blog post nobody will read.

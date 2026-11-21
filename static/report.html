@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Originality report — BurstAI</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Lexend:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/burst.css">
+<link rel="stylesheet" href="/static/css/mobile.css">
+</head>
+<body class="report">
+
+<header class="topbar">
+  <div class="in">
+    <a href="/" class="logo" aria-label="BurstAI home">
+      <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 1l3.2 9.1L28 6l-4.1 8.8L31 16l-7.1 1.2L28 26l-8.8-4.1L16 31l-3.2-9.1L4 26l4.1-8.8L1 16l7.1-1.2L4 6l8.8 4.1z" fill="#C6F432" stroke="#0E1B3D" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      <span class="word">burstai</span>
+    </a>
+    <a href="/check" class="back sm" id="back-sm" aria-label="Back to scan"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></a>
+    <nav class="crumb" aria-label="Breadcrumb"><a href="/check" id="back" class="lg">Scan</a><span aria-hidden="true" class="lg">/</span><span class="cur">Report</span></nav>
+    <div class="right">
+      <button type="button" class="btn icon-sm" id="share" aria-label="Copy share link"><svg class="sm" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M5 13v7h14v-7"/></svg><span class="lg">Copy share link</span></button>
+      <button type="button" class="btn btn-blue icon-sm" id="pdf" aria-label="Download PDF"><svg class="sm" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span class="lg">Download PDF</span></button>
+    </div>
+  </div>
+</header>
+
+<div class="main" id="main">
+  <div class="r-title">
+    <div>
+      <div class="eyebrow" id="eyebrow">ORIGINALITY REPORT</div>
+      <h1 id="title">…</h1>
+      <div class="meta" id="meta"></div>
+    </div>
+  </div>
+
+  <section class="scores" aria-label="Scores">
+    <div class="grid">
+      <div class="sc p" id="sc-plag"><div class="hd"><span>Similarity</span><span id="p-tag">…</span></div><div class="big" id="p-big">…</div><div class="bar" id="p-bar"></div></div>
+      <div class="sc a" id="sc-ai"><div class="hd"><span>AI writing</span><span id="a-tag">…</span></div><div class="big" id="a-big">…</div><div class="sub" id="a-sub"></div></div>
+      <div class="sc gr" id="sc-gram"><div class="hd"><span>Grammar</span><span id="g-tag">…</span></div><div class="big" id="g-big">…</div><div class="sub" id="g-sub"></div></div>
+    </div>
+  </section>
+
+  <section class="summary">
+    <span class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="#0E1B3D" aria-hidden="true"><path d="M12 2l2 6.5L20.5 10 14 12l-2 6.5L10 12 3.5 10 10 8.5z"/></svg></span>
+    <div class="tx"><h2>In short</h2><p id="summary"></p></div>
+  </section>
+
+  <section class="r-sec flag-sec sm">
+    <h2>Flagged sentences</h2>
+    <div class="flag-cards" id="flagcards"></div>
+  </section>
+
+  <section class="r-sec table-sec">
+    <h2>Sentence by sentence</h2>
+    <div class="tablewrap">
+      <table class="sent">
+        <thead><tr><th scope="col" style="width:44px">#</th><th scope="col">Sentence</th><th scope="col" style="width:120px">Source</th><th scope="col" style="width:180px">AI likelihood</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="two">
+    <div class="left">
+      <h2 class="display" style="font-size:32px;margin:0 0 18px">Sources</h2>
+      <div class="srcs" id="sources"></div>
+    </div>
+    <div class="right">
+      <div class="certcard">
+        <div class="eyebrow2">ORIGINALITY CERTIFICATE</div>
+        <div class="t">Share this report with your teacher</div>
+        <div class="box"><div class="qr" aria-hidden="true"></div><div id="verify">Create the certificate to get a verification link — no account needed.</div></div>
+        <button type="button" class="mk" id="mk">Create certificate</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="method">
+    <b>How these scores are made.</b> Similarity compares word sequences and sentence meaning against public web pages and Wikipedia (plus any documents you added to your local corpus); private archives of student papers are not searched. AI likelihood combines two language models' predictability (Binoculars), sentence-level burstiness and stylometric signals. Scores are probabilities and can be wrong — use them to start a conversation, never as the only proof.
+  </section>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="/static/js/common.js"></script>
+<script src="/static/js/report.js"></script>
+</body>
+</html>

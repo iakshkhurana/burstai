@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Check plagiarism and AI writing — BurstAI</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Lexend:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/burst.css">
+<link rel="stylesheet" href="/static/css/mobile.css">
+</head>
+<body class="checker">
+
+<header class="topbar">
+  <a href="/" class="back sm" aria-label="Back to home"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></a>
+  <a href="/" class="logo lg" aria-label="BurstAI home">
+    <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 1l3.2 9.1L28 6l-4.1 8.8L31 16l-7.1 1.2L28 26l-8.8-4.1L16 31l-3.2-9.1L4 26l4.1-8.8L1 16l7.1-1.2L4 6l8.8 4.1z" fill="#C6F432" stroke="#0E1B3D" stroke-width="1.4" stroke-linejoin="round"/></svg>
+    <span class="word">burstai</span>
+  </a>
+  <nav class="crumb" aria-label="Breadcrumb"><a href="/me" class="lg">My scans</a><span aria-hidden="true" class="lg">/</span><span class="cur-wrap"><span class="cur" id="crumb">New scan</span><span class="chip sm" id="chip-sm">0 words</span></span></nav>
+  <span class="chip lg" id="chip">0 words</span>
+  <div class="right">
+    <a href="/" class="btn lg" id="new">New scan</a>
+    <a href="/report" class="btn btn-lime" id="cert"><span class="lg">Get certificate</span><span class="sm">Report</span></a>
+  </div>
+</header>
+
+<div class="work" id="work">
+  <main class="docpane">
+    <div class="tabs" role="tablist" aria-label="Layer">
+      <button type="button" class="tab" role="tab" data-tab="plag" aria-selected="true"><span class="dot" style="background:#FF5C7A"></span>Plagiarism <b id="t-plag">…</b></button>
+      <button type="button" class="tab" role="tab" data-tab="ai" aria-selected="false"><span class="dot" style="background:#B79CFF"></span>AI writing <b id="t-ai">…</b></button>
+      <button type="button" class="tab" role="tab" data-tab="grammar" aria-selected="false"><span class="dot" style="background:#7FB3FF"></span>Grammar <b id="t-gram">…</b></button>
+    </div>
+    <article class="paper">
+      <h1 id="title"></h1>
+      <div class="body" id="body"></div>
+    </article>
+  </main>
+
+  <aside class="results" aria-label="Results">
+    <div class="score loading" id="score" style="background:#FFD3DC">
+      <svg class="ring" width="104" height="104" viewBox="0 0 104 104" role="img" aria-label="Score" id="ring">
+        <circle cx="52" cy="52" r="42" fill="none" stroke="rgba(14,27,61,0.18)" stroke-width="12"/>
+        <circle class="arc" cx="52" cy="52" r="42" fill="none" stroke="#0E1B3D" stroke-width="12" stroke-linecap="round" stroke-dasharray="66 198" transform="rotate(-90 52 52)" id="arc"/>
+        <text x="52" y="60" text-anchor="middle" fill="#0E1B3D" id="big">…</text>
+      </svg>
+      <div class="tile" id="tile" aria-hidden="true">…</div>
+      <div style="min-width:0">
+        <h2 id="s-title">Scanning</h2>
+        <p id="s-sub">Searching the web and scoring with language models…</p>
+      </div>
+    </div>
+    <section class="panel" id="panel"></section>
+  </aside>
+</div>
+
+<template id="tpl-gate">
+  <div class="gate"><div class="card">
+    <h2>Nothing to scan yet</h2>
+    <p>Paste your essay on the home page, or try the sample.</p>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><a class="btn btn-lime" href="/">Paste text</a><a class="btn" href="/check?sample=1">Try the sample</a></div>
+  </div></div>
+</template>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="/static/js/common.js"></script>
+<script src="/static/js/checker.js"></script>
+</body>
+</html>

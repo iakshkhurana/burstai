@@ -1,0 +1,5 @@
+Run 14, Thursday. Changed the buffer to 50 mM Tris, pH 7.8 because the pH 8.2 batch kept precipitating after about forty minutes on ice. No precipitate this time, at least not visibly. Loaded 12 ul per lane instead of 10, gel ran at 120 V for 55 min, the dye front went slightly off the bottom which is my fault for answering emails.
+
+Bands: strong at ~45 kDa in lanes 3-5 (the induced samples), faint in lane 2 (uninduced). So induction works, which is a relief after last week. There's a second band around 30 kDa that I don't understand. Could be degradation, could be the His-tag getting clipped, could be contamination from Priya's samples since we shared the tank. Will re-run tomorrow with protease inhibitors and my own tank. Also need to order more ladder, we're nearly out and Marcus says the supplier takes two weeks now.
+
+Note to self: the imager login is still broken for my account, used Priya's. Ask IT again, third time.

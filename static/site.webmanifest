@@ -1,0 +1,13 @@
+{
+  "name": "BurstAI — Free Plagiarism Checker & AI Detector",
+  "short_name": "BurstAI",
+  "description": "Plagiarism, AI-writing and grammar check in one free scan. No sign-up, no word cap.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#0E1B3D",
+  "icons": [
+    { "src": "/static/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/static/og.png", "sizes": "1200x630", "type": "image/png" }
+  ]
+}
