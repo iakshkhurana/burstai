@@ -24,7 +24,7 @@ PUBLIC_URL = "https://burstai.akshk845.workers.dev"
 # Where the Python engine (app/main.py) is running. Workers cannot run PyTorch, so the engine
 # lives on any always-on machine and is reached over HTTPS, e.g. a Cloudflare Tunnel to your
 # laptop/PC, a free Oracle/Fly/Render VM, or a cheap VPS. See DEPLOY.md.
-ENGINE_URL = "https://engine.example.com"
+ENGINE_URL = "https://firmware-tion-destination-knight.trycloudflare.com"
 
 # Secrets (set with `wrangler secret put NAME`):
 #   ENGINE_TOKEN   shared secret the Worker sends as X-Engine-Token; set BURSTAI_ENGINE_TOKEN on the engine to the same value
