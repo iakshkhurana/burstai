@@ -6,6 +6,7 @@ use run LanguageTool locally (docker: erikvl87/languagetool) and set LANGUAGETOO
 from __future__ import annotations
 
 import logging
+import re
 
 import httpx
 
@@ -44,6 +45,9 @@ async def check_grammar(text: str, language: str = "auto") -> dict:
         cat = (m.get("rule", {}).get("category", {}) or {}).get("id", "OTHER")
         issue_type = m.get("rule", {}).get("issueType", "")
         kind = _bucket(cat, issue_type)
+        flagged = text[m["offset"] : m["offset"] + m["length"]]
+        if _noise(m, kind, flagged):
+            continue
         counts[kind] = counts.get(kind, 0) + 1
         issues.append(
             {
@@ -59,6 +63,38 @@ async def check_grammar(text: str, language: str = "auto") -> dict:
         )
     lang = (data.get("language") or {}).get("detectedLanguage", {}).get("name") or (data.get("language") or {}).get("name")
     return {"available": True, "language": lang, "issues": issues, "counts": counts, "truncated": truncated}
+
+
+_VARIANT_HINT = re.compile(r"\b(British|American|Canadian|Australian) English\b", re.I)
+_TECHY = re.compile(r"^(?=.*[a-z])(?=.*[A-Z]).*[A-Z].*$|^[A-Z0-9][A-Z0-9&.+-]{1,}$|\d|[A-Za-z]+[-/][A-Za-z]+")
+_NOISY_RULES = {"WHITESPACE_RULE", "CONSECUTIVE_SPACES", "DOUBLE_PUNCTUATION", "UNPAIRED_BRACKETS", "COMMA_PARENTHESIS_WHITESPACE"}
+
+
+def _noise(m: dict, kind: str, flagged: str) -> bool:
+    """Drop suggestions that are almost always wrong for real-world text.
+
+    * cosmetic whitespace / punctuation-spacing rules (pasted text is often reflowed)
+    * spelling flags on CamelCase, acronyms, product names, hyphenated tech terms (GenAI-powered)
+    * British/American variant nags - both are correct English
+    * spelling fixes whose replacement barely resembles the word (Gas-powered for GenAI-powered)
+    """
+    rule = m.get("rule", {}).get("id", "")
+    if rule in _NOISY_RULES or rule.startswith("WHITESPACE"):
+        return True
+    if kind != "spelling":
+        return False
+    word = flagged.strip()
+    if not word or _TECHY.search(word):
+        return True
+    if _VARIANT_HINT.search(m.get("message", "")):
+        return True
+    reps = [r["value"] for r in m.get("replacements", [])[:3]]
+    if reps:
+        from rapidfuzz import fuzz
+
+        if max(fuzz.ratio(word.lower(), r.lower()) for r in reps) < 72:
+            return True
+    return False
 
 
 def _bucket(category: str, issue_type: str) -> str:

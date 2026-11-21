@@ -261,6 +261,15 @@ def _base(request: Request) -> str:
 
 
 def _page(name: str, request: Request, *, noindex: bool = False) -> HTMLResponse:
+    if config.ENGINE_TOKEN:
+        # Engine-only mode (behind a Worker proxy): never serve the UI from the engine host, so the
+        # public tunnel URL cannot be used to run checks without the shared token.
+        site = config.PUBLIC_URL or "/"
+        return HTMLResponse(
+            f'<!doctype html><meta charset="utf-8"><title>BurstAI engine</title><body style="font:16px system-ui;padding:40px">'
+            f"<p>BurstAI engine is running. Use the site at <a href=\"{site}\">{site}</a>.</p>",
+            status_code=404, headers={"X-Robots-Tag": "noindex, nofollow"},
+        )
     html = (STATIC / name).read_text(encoding="utf-8").replace("__BASE__", _base(request))
     headers = {"Cache-Control": "no-cache"}
     if noindex:
