@@ -53,7 +53,7 @@ async function servePage(name, env, url, noindex) {
 }
 
 async function proxy(request, env, url) {
-  if (!env.ENGINE_URL) return fail(503, "Engine not configured: set ENGINE_URL in wrangler.toml");
+  if (!env.ENGINE_URL || /example\.com/.test(env.ENGINE_URL)) return fail(503, "The checking engine is not connected yet. Set ENGINE_URL in cloudflare/wrangler.toml to where app/main.py is running (see DEPLOY.md).");
   const target = new URL(url.pathname + url.search, env.ENGINE_URL);
   const headers = new Headers(request.headers);
   headers.delete("cookie");
