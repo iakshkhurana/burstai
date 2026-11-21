@@ -26,7 +26,7 @@ from .grammar import check_grammar
 from . import reports
 from .plagiarism import corpus
 from .plagiarism import engine as plag_engine
-from .plagiarism.matcher import get_embedder
+from .plagiarism.matcher import embedder_ready, get_embedder
 from .textproc import split_sentences
 
 logging.basicConfig(level=os.getenv("BURSTAI_LOG", "INFO"), format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -90,7 +90,7 @@ async def health():
     return {
         "version": __version__,
         "lm": SCORER.info(),
-        "embedder": get_embedder() is not None,
+        "embedder": embedder_ready(),
         "cuda": cuda,
         "gemini": llm_judge.available(),
         "gemini_model": config.GEMINI_MODEL if llm_judge.available() else None,

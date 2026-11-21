@@ -59,6 +59,11 @@ def get_embedder():
     return _embedder
 
 
+def embedder_ready() -> bool:
+    """Non-blocking status check (never triggers a load)."""
+    return _embedder is not None
+
+
 def _device() -> str:
     if config.DEVICE != "auto":
         return config.DEVICE
