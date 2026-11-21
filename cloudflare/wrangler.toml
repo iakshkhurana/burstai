@@ -7,6 +7,8 @@ compatibility_flags = ["nodejs_compat"]
 [assets]
 directory = "../static"
 binding = "ASSETS"
+# Let the Worker see every request first (pages need PUBLIC_URL injected and noindex headers).
+run_worker_first = true
 
 # D1 (free tier) holds users, sessions, saved scans and saved reports.
 # Create it once:  wrangler d1 create burstai   -> paste the database_id below, then:

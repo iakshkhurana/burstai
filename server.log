@@ -123,3 +123,13 @@ INFO:     127.0.0.1:52876 - "GET /static/js/landing.js HTTP/1.1" 200 OK
 INFO:     127.0.0.1:59970 - "GET /static/site.webmanifest HTTP/1.1" 200 OK
 INFO:     127.0.0.1:64761 - "GET /api/auth/me HTTP/1.1" 200 OK
 INFO:     127.0.0.1:64761 - "GET /static/favicon.svg HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58427 - "GET /check?sample=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58427 - "GET /static/css/burst.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61635 - "GET /static/css/mobile.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55706 - "GET /static/js/common.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60368 - "GET /static/js/checker.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58898 - "GET /static/samples/urban_heat.txt HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58898 - "GET /api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61897 - "GET /static/favicon.svg HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58898 - "POST /api/check HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54309 - "GET /api/auth/me HTTP/1.1" 200 OK

@@ -28,6 +28,8 @@ export default {
       if (path === "/sitemap.xml") return new Response(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${base(env, url)}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>\n</urlset>\n`, { headers: { "content-type": "application/xml" } });
       const page = PAGES[path] || (path.startsWith("/v/") ? "report.html" : null);
       if (page) return servePage(page, env, url, NOINDEX.has(path) || path.startsWith("/v/"));
+      // The HTML references /static/...; the assets directory is the static folder itself.
+      if (path.startsWith("/static/")) return env.ASSETS.fetch(new Request(new URL(path.slice(7) + url.search, url.origin), request));
       return env.ASSETS.fetch(request);
     } catch (e) {
       return json({ detail: String(e?.message || e) }, 500);
