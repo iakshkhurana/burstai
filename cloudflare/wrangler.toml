@@ -2,6 +2,8 @@ name = "burstai"
 main = "src/worker.js"
 compatibility_date = "2026-11-01"
 compatibility_flags = ["nodejs_compat"]
+# Keep variables/secrets added in the Cloudflare dashboard across git deploys (otherwise [vars] below replaces them).
+keep_vars = true
 
 # The whole ./static folder is served as static assets by the Worker (free, cached at the edge).
 [assets]
