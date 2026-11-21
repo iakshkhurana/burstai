@@ -43,7 +43,7 @@ button { font-family: inherit; }
 @keyframes bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -12px; } }
 @keyframes spin { to { rotate: 360deg; } }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
-@keyframes ring-spin { to { transform: rotate(270deg); } }
+@keyframes ring-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .bob, .bob2, .spin { animation: none; } .pop { transition: none; } }
 
 /* ---------- buttons ---------- */
@@ -256,7 +256,7 @@ button { font-family: inherit; }
 .score .ring { flex: none; }
 .score .ring text { font-family: var(--display); font-weight: 800; font-size: 26px; }
 .score .ring .arc { transition: stroke-dasharray .6s ease; }
-.score.loading .ring .arc { animation: ring-spin 1.2s linear infinite; transform-origin: 52px 52px; }
+.score.loading .ring .arc { animation: ring-spin 1s linear infinite; transform-box: fill-box; transform-origin: center; stroke-dasharray: 66 198; }
 
 .panel { background: #FFFFFF; border: 2px solid var(--ink); border-radius: 28px; padding: 20px; display: flex; flex-direction: column; gap: 12px; flex: 1; }
 .panel h3 { font-family: var(--display); font-size: 19px; margin: 0; font-weight: 600; }
