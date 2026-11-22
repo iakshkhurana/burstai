@@ -2,7 +2,7 @@
 
 Strategy (same idea Turnitin/Copyscape use, minus the private index):
   * pick the most *distinctive* sentences of the document,
-  * turn each into an exact-phrase query of 8-12 consecutive words,
+  * turn each into a query of 8-12 consecutive words,
   * ask web search engines (via the `ddgs` package; no API key) for matching pages,
   * query Wikipedia's search API directly since it is the #1 copy source,
   * query Europe PMC and Crossref for papers whose abstracts may have been copied.
@@ -34,6 +34,8 @@ SEARCH_TTL = 7 * 86400
 EMPTY_TTL = 86400          # "nothing found" is remembered for a day only
 HEALTH_TTL = 600           # re-test blocked search engines every 10 minutes
 _health = {"ok": None, "at": 0.0}
+# Real web engines only: Wikipedia has its own, better-behaved API below.
+WEB_BACKENDS = "duckduckgo,brave,yahoo,mojeek,startpage"
 # sponsored / tracking redirects that search front-ends mix into results
 _AD_URL = re.compile(r"bing\.com/aclick|duckduckgo\.com/y\.js|googleadservices\.|doubleclick\.net|/aclk\?|[?&]ad_domain=", re.I)
 
@@ -53,7 +55,7 @@ def _k(s: str) -> str:
 
 
 def build_queries(sentences: list[Sentence], max_queries: int) -> list[str]:
-    """Pick distinctive sentences and build exact-phrase queries."""
+    """Pick distinctive sentences and turn each into a search phrase of 8-12 consecutive words."""
     scored = []
     for s in sentences:
         if s.is_reference or s.is_citation or s.word_count < 7:
@@ -74,7 +76,7 @@ def build_queries(sentences: list[Sentence], max_queries: int) -> list[str]:
         if not phrase or key in seen:
             continue
         seen.add(key)
-        queries.append(f'"{phrase}"')
+        queries.append(phrase)
         if len(queries) >= max_queries:
             break
     return queries
@@ -117,14 +119,21 @@ def web_search_available() -> bool:
         from ddgs import DDGS
 
         with DDGS(timeout=8) as ddg:
-            ok = bool(ddg.text("wikipedia free encyclopedia", max_results=2, backend="auto"))
+            # same style as the real queries (an unquoted run of words), real web engines only
+            ok = bool(ddg.text("to be or not to be that is the question whether tis nobler", max_results=2, backend=WEB_BACKENDS))
     except Exception as e:  # noqa: BLE001
         log.warning("web search canary failed (%s): search engines are not answering this server", type(e).__name__)
     _health.update(ok=ok, at=now)
     return ok
 
 
-def _ddg_search(query: str, n: int) -> list[Candidate]:
+def _ddg_search(query: str, n: int, fallback: bool = False) -> list[Candidate]:
+    """Search real web engines for a run of words from the document.
+
+    Queries are deliberately NOT quoted: the free front-ends currently return nothing for long
+    exact-phrase queries, while the same words unquoted bring back the pages that contain them.
+    Relevance is then decided by the matcher on the downloaded text, not by the search engine.
+    With fallback=True an empty answer is retried once with just the distinctive keywords."""
     cached = cache.get("search", _k(query), SEARCH_TTL)
     if cached is None and cache.get("search0", _k(query), EMPTY_TTL) is not None:
         cached = []
@@ -133,20 +142,21 @@ def _ddg_search(query: str, n: int) -> list[Candidate]:
 
     rows: list[dict] = []
     definitive = False  # True when an engine answered (even with nothing) rather than timing out
-    # ddgs rotates several engines under "auto"; if that fails, try plain DuckDuckGo once more.
-    for attempt, backend in enumerate(("auto", "duckduckgo")):
+    attempts = [query] + ([_terms(query, 9)] if fallback and _terms(query, 9) else [])
+    for attempt, q in enumerate(attempts):
         try:
             from ddgs import DDGS
 
             with DDGS(timeout=8) as ddg:
-                rows = ddg.text(query, max_results=n, backend=backend) or []
+                rows = ddg.text(q, max_results=n, backend=WEB_BACKENDS) or []
             definitive = True
-            break
+            if rows:
+                break
         except Exception as e:  # noqa: BLE001 - network / rate-limit; degrade gracefully
             if "No results" in str(e):
-                definitive = True  # normal for original sentences
-                break
-            log.warning("web search backend %s failed (%s)", backend, type(e).__name__)  # never log the query text
+                definitive = True  # normal for original sentences; maybe the keyword form finds something
+                continue
+            log.warning("web search failed (%s)", type(e).__name__)  # never log the query text
             time.sleep(1.0 * (attempt + 1))
     out = []
     for r in rows:
@@ -269,7 +279,7 @@ async def find_candidates(sentences: list[Sentence], deep: bool = False) -> tupl
     status["web_blocked"] = not web_ok
     async with httpx.AsyncClient(follow_redirects=True) as client:
         # when the engines refuse us, only replay cached answers instead of hammering them
-        tasks: list[asyncio.Future] = [loop.run_in_executor(_pool, _ddg_search, q, per_q) for q in queries] if web_ok else []
+        tasks: list[asyncio.Future] = [loop.run_in_executor(_pool, _ddg_search, q, per_q, i < 4) for i, q in enumerate(queries)] if web_ok else []
         side = queries[: max(3, len(queries) // 2)]
         tasks += [asyncio.ensure_future(_wiki_search(client, q)) for q in side]
         tasks += [asyncio.ensure_future(_europepmc(client, q)) for q in side[:4]]

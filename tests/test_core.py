@@ -75,10 +75,23 @@ def test_winnowing_guarantee_eight_word_run():
     assert overlap(doc2, doc1) > 0
 
 
+def test_matcher_finds_copies_and_does_not_invent_matches():
+    from app.plagiarism.matcher import match_all
+
+    doc = split_sentences(COPIED)
+    matches = match_all(doc, None, {"https://src.example/original": ORIGINAL, "https://src.example/unrelated": UNRELATED})
+    by_sentence = {m.sentence_index: m for m in matches}
+    assert by_sentence[0].kind == "exact" and by_sentence[0].source_url.endswith("/original")
+    assert by_sentence[2].kind == "exact"
+    assert 1 not in by_sentence                                  # "This is why they are called the powerhouse." is original
+    assert all(not m.source_url.endswith("/unrelated") for m in matches)
+    assert match_all(split_sentences(UNRELATED), None, {"https://src.example/original": ORIGINAL}) == []
+
+
 def test_build_queries_prefers_distinctive_sentences():
     text = ORIGINAL + "\n\nReferences\nKolliker A. (1857). Some paper."
     qs = build_queries(split_sentences(text), 5)
-    assert qs and all(q.startswith('"') and q.endswith('"') for q in qs)
+    assert qs and all(8 <= len(q.split()) <= 12 and '"' not in q for q in qs)
     assert all("Some paper" not in q for q in qs)  # reference lines skipped
 
 

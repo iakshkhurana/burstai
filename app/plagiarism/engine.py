@@ -11,7 +11,7 @@ from ..fingerprint import winnow
 from ..textproc import Sentence, split_sentences, tokenize_words
 from . import corpus
 from .fetch import fetch_all
-from .matcher import SentenceMatch, embed, match_sentences, quick_overlap
+from .matcher import SentenceMatch, embed, match_all, quick_overlap
 from .search import Candidate, find_candidates
 
 log = logging.getLogger(__name__)
@@ -121,12 +121,11 @@ async def check_plagiarism(
     doc_vecs = await asyncio.to_thread(embed, [s.text for s in sents]) if sents else None
     all_matches: list[SentenceMatch] = []
     if texts:
-        jobs = [asyncio.to_thread(match_sentences, sents, doc_vecs, url, src) for url, src in texts.items()]
-        for res in await asyncio.gather(*jobs, return_exceptions=True):
-            if isinstance(res, Exception):
-                log.warning("matcher failed: %s", res)
-                continue
-            all_matches.extend(res)
+        try:
+            all_matches = await asyncio.to_thread(match_all, sents, doc_vecs, texts)
+        except Exception as e:  # noqa: BLE001
+            log.warning("matcher failed (%s)", type(e).__name__)
+            warnings.append("Comparing against the sources failed this time; please scan again.")
 
     # ---- best match per sentence (exact beats near beats paraphrase; then score)
     rank = {"exact": 3, "near": 2, "paraphrase": 1}
