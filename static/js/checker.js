@@ -155,9 +155,10 @@
     let v = "–", f = 0, title = PANEL[tab].t, sub = "", label = title;
     if (tab === "plag") {
       if (s.similarity == null) { sub = "Plagiarism check did not run."; }
+      else if (s.P.coverage && s.P.coverage.web_searched && !s.P.coverage.web && !s.sources.length) { v = "?"; sub = "The web search did not answer this time, so web pages were not checked. Scan again in a few minutes."; label = "Similarity could not be checked against the web"; }
       else { v = B.pct(s.similarity); f = s.similarity / 100; sub = s.sources.length ? `${s.sources.length} source${s.sources.length === 1 ? "" : "s"} share wording. Tap one to isolate it in the text.` : `No matching sources found across ${s.P.candidates_checked} page${s.P.candidates_checked === 1 ? "" : "s"} checked.`; label = `Similarity ${Math.round(s.similarity)} percent`; }
     } else if (tab === "ai") {
-      if (s.aiPct == null) { sub = "AI detection did not run."; }
+      if (s.aiPct == null) { sub = s.aiVerdict || "AI detection did not produce a score."; }
       else { v = B.pct(s.aiPct); f = s.aiPct / 100; sub = `${s.aiFlagged.length} of ${s.aiRows.length} sentences look AI-written. ${s.aiLevel} overall · ${s.aiConfidence} confidence.`; label = `AI writing ${Math.round(s.aiPct)} percent`; }
     } else {
       if (!s.G) { sub = "Grammar check unavailable."; }
@@ -200,6 +201,7 @@
     } else if (state.tab === "ai") {
       panel.appendChild(h("h3", "", "Rhythm by sentence"));
       if (!s.A) panel.appendChild(h("div", "empty", "AI detection did not run."));
+      else if (s.aiPct == null) panel.appendChild(h("div", "empty", B.esc(s.aiVerdict || "No AI score for this text.")));
       else {
         if (s.aiRows.length) {
           const bars = h("div", "rhythm"); bars.setAttribute("aria-hidden", "true");
@@ -214,7 +216,7 @@
         panel.appendChild(h("div", "signals", kv.map(([k, v]) => `<span>${k}</span><span>${B.esc(String(v))}</span>`).join("")));
         if (s.A.reasons?.length) panel.appendChild(h("p", "note", s.A.reasons.slice(0, 3).map(B.esc).join(" · ")));
       }
-      panel.appendChild(h("p", "note", "AI scores are probabilities, not proof."));
+      panel.appendChild(h("p", "note", "AI scores are statistical estimates, not proof. They work for English only and can be wrong, especially on short texts and for non-native writers. Never use one as the only basis for a decision about a person."));
       if (!B.gemini.has()) panel.appendChild(nudge("Add your free Gemini key for a second opinion with reasons."));
       warns.forEach((w) => panel.appendChild(w));
     } else {
@@ -271,7 +273,7 @@
   // ------------------------------------------------------------------ local corpus
   function corpusBlock() {
     const det = document.createElement("details"); det.className = "corpus";
-    det.innerHTML = `<summary>Also compare against your own documents</summary><ul id="corpus-list"><li>Loading…</li></ul><label class="btn add"><input type="file" id="corpus-file" multiple hidden accept=".txt,.md,.docx,.pdf">Add documents</label>`;
+    det.innerHTML = `<summary>Also compare against your own documents (private to you)</summary><ul id="corpus-list"><li>Loading…</li></ul><label class="btn add"><input type="file" id="corpus-file" multiple hidden accept=".txt,.md,.docx,.pdf">Add documents</label>`;
     det.addEventListener("toggle", () => det.open && loadCorpus());
     det.querySelector("#corpus-file").addEventListener("change", async (e) => {
       for (const f of e.target.files) { const fd = new FormData(); fd.append("file", f); try { await B.api("/api/corpus", { method: "POST", body: fd }); } catch (err) { B.toast(`${f.name}: ${err.message}`); } }
@@ -290,23 +292,29 @@
         li.querySelector("button").addEventListener("click", async () => { await B.api(`/api/corpus/${d.id}`, { method: "DELETE" }); loadCorpus(); });
         ul.appendChild(li);
       });
-    } catch { ul.innerHTML = `<li>Could not load corpus.</li>`; }
+    } catch (err) {
+      ul.textContent = "";
+      const li = document.createElement("li");
+      if (/log in/i.test(err.message)) { const a = document.createElement("a"); a.href = "/login?next=/check"; a.textContent = "Log in"; li.append(a, " to keep a private document bank that only you can see."); }
+      else li.textContent = "Could not load your documents right now.";
+      ul.appendChild(li);
+    }
   }
 
   // ------------------------------------------------------------------ report payload
   function buildReport() {
     const s = state.sum, now = Date.now();
     const kinds = {}; s.openIssues.forEach((it) => (kinds[it.kind] = (kinds[it.kind] || 0) + 1));
+    const att = s.attestation && s.attestation.sig ? s.attestation : null;
     return {
-      id: B.reportId(state.text, new Date(now).toDateString()), date: now,
-      title: s.title, words: s.totalWords, text: state.text,
+      id: att ? B.reportId(att.sig) : "", date: now, attestation: att, edited: Object.keys(state.fixed).length > 0,
+      title: s.title, words: s.totalWords,
       similarity: s.similarity, aiPct: s.aiPct, aiLevel: s.aiLevel, aiVerdict: s.aiVerdict, aiConfidence: s.aiConfidence,
       aiFlagged: s.aiFlagged.length, aiTotal: s.aiRows.length,
-      sources: s.sources.map((x) => ({ n: x.n, url: x.url, host: x.host, title: x.title, kind: x.kind, pct: x.pct, words: x.words, color: x.color, tint: x.tint, mainKind: x.mainKind, sentences: x.sentences })),
+      sources: s.sources.map((x) => ({ n: x.n, url: x.url, host: x.host, title: x.title, kind: x.kind, pct: x.pct, words: x.words, mainKind: x.mainKind })),
       rows: s.bodyRows.map((r) => ({ text: r.text, src: r.src ? r.src.n : null, ai: r.ai, excluded: r.excluded, kind: r.match?.kind || null })),
       grammar: s.G ? { open: s.openIssues.length, kinds } : null,
-      hasPlag: !!s.P, hasAi: !!s.A, hasGrammar: !!s.G,
-      excludeQuotes: state.excludeQuotes, excludeBib: state.excludeBib,
+      hasPlag: !!s.P, hasAi: !!s.A && s.aiPct != null, hasGrammar: !!s.G,
     };
   }
 })();

@@ -1,0 +1,17 @@
+# Everything except the heavy ML stack (torch / transformers / sentence-transformers).
+# The app imports those lazily, and tests run with BURSTAI_OFFLINE_LM=1.
+fastapi
+uvicorn[standard]
+python-multipart
+python-dotenv
+pydantic
+httpx
+trafilatura
+rapidfuzz
+python-docx
+pypdf
+numpy
+regex
+ddgs
+google-genai
+pytest

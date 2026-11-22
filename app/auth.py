@@ -18,10 +18,13 @@ from dataclasses import dataclass
 from fastapi import HTTPException, Request, Response
 
 from . import config
+from .reports import sanitize_view
 
 _DB = config.DATA_DIR / "users.sqlite3"
 COOKIE = "burstai_session"
 SESSION_TTL = 30 * 86400
+MAX_PASSWORD = 200     # PBKDF2 input cap (prevents hashing-cost abuse)
+MAX_SCANS = 500        # per account; oldest are pruned
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _ITER = 210_000
 
@@ -75,11 +78,13 @@ def _token_hash(token: str) -> str:
 
 # ------------------------------------------------------------------ accounts
 def signup(name: str, email: str, password: str) -> User:
-    name, email = name.strip()[:80], email.strip().lower()
-    if not _EMAIL.match(email):
+    name, email = re.sub(r"[\x00-\x1f<>]", " ", name).strip()[:80], email.strip().lower()
+    if len(email) > 254 or not _EMAIL.match(email):
         raise HTTPException(400, "Enter a valid email address")
     if len(password) < 8:
         raise HTTPException(400, "Password must be at least 8 characters")
+    if len(password) > MAX_PASSWORD:
+        raise HTTPException(400, f"Password must be at most {MAX_PASSWORD} characters")
     if not name:
         name = email.split("@")[0]
     with _conn() as c:
@@ -90,7 +95,9 @@ def signup(name: str, email: str, password: str) -> User:
 
 
 def login(email: str, password: str) -> User:
-    email = email.strip().lower()
+    email = email.strip().lower()[:254]
+    if len(password) > MAX_PASSWORD:
+        raise HTTPException(401, "Wrong email or password")
     with _conn() as c:
         row = c.execute("SELECT id, email, name, pw_hash, created FROM users WHERE email=?", (email,)).fetchone()
     if not row or not verify_password(password, row[3]):
@@ -141,9 +148,25 @@ def clear_cookie(response: Response) -> None:
 
 
 # ------------------------------------------------------------------ saved scans
+def delete_account(user_id: int) -> None:
+    """Erase the account and everything stored for it (sessions, saved scans, document bank)."""
+    with _conn() as c:
+        c.execute("DELETE FROM scans WHERE user_id=?", (user_id,))
+        c.execute("DELETE FROM sessions WHERE user_id=?", (user_id,))
+        c.execute("DELETE FROM users WHERE id=?", (user_id,))
+    from .plagiarism import corpus
+
+    corpus.delete_owner(f"u{user_id}")
+
+
 def save_scan(user_id: int, report: dict) -> dict:
-    report = dict(report)
-    report.pop("text", None)  # the essay itself is never stored
+    try:
+        report = sanitize_view(report)  # allow-listed scores and sources only; never the essay text
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    with _conn() as c:
+        if c.execute("SELECT COUNT(*) FROM scans WHERE user_id=?", (user_id,)).fetchone()[0] >= MAX_SCANS:
+            c.execute("DELETE FROM scans WHERE id IN (SELECT id FROM scans WHERE user_id=? ORDER BY created ASC LIMIT 20)", (user_id,))
     row = (
         user_id,
         str(report.get("id") or ""),

@@ -9,7 +9,7 @@ rapidfuzz
 python-docx
 pypdf
 numpy
-scikit-learn
+regex
 ddgs
 torch
 transformers

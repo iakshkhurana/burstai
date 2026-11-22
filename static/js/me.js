@@ -15,7 +15,28 @@
       $("avatar").addEventListener("click", () => (location.href = "/login?next=/me"));
       $("logout").textContent = "Log in"; $("logout").addEventListener("click", () => (location.href = "/login?next=/me"), { once: true });
     }
-    if (user) $("logout").addEventListener("click", async () => { await B.api("/api/auth/logout", { method: "POST" }); B.store.del("me"); location.href = "/"; });
+    // logging out also wipes anything about the last scan kept in this tab (shared computers)
+    const wipeSession = () => { try { sessionStorage.clear(); } catch {} };
+    if (user) $("logout").addEventListener("click", async () => { await B.api("/api/auth/logout", { method: "POST" }).catch(() => {}); wipeSession(); location.href = "/"; });
+
+    $("clear-device").addEventListener("click", () => {
+      try { localStorage.removeItem("burstai.history"); localStorage.removeItem("burstai.gemini_key"); } catch {}
+      wipeSession(); B.toast("History and saved key cleared from this device"); setTimeout(() => location.reload(), 700);
+    });
+    if (user) {
+      const del = $("delete-account"), form = $("delete-form"), derr = $("delete-err");
+      del.hidden = false;
+      del.addEventListener("click", () => { form.hidden = false; del.hidden = true; form.password.focus(); });
+      $("delete-cancel").addEventListener("click", () => { form.hidden = true; del.hidden = false; derr.hidden = true; });
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault(); derr.hidden = true;
+        try {
+          await B.api("/api/auth/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: form.password.value }) });
+          try { localStorage.removeItem("burstai.history"); } catch {}
+          wipeSession(); location.href = "/";
+        } catch (ex) { derr.textContent = ex.message; derr.hidden = false; }
+      });
+    }
     // merge local history (device) with server scans, newest first, de-duplicated by title+day
     const local = (B.store.local("history") || []).map((h) => ({ ...h, local: true }));
     const seen = new Set();

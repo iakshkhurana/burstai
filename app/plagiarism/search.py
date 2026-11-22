@@ -1,14 +1,20 @@
-"""Candidate source retrieval from the open web, free and key-less.
+"""Candidate source retrieval from the open web and open academic indexes - free and key-less.
 
 Strategy (same idea Turnitin/Copyscape use, minus the private index):
   * pick the most *distinctive* sentences of the document,
   * turn each into an exact-phrase query of 8-12 consecutive words,
-  * ask DuckDuckGo (via the `ddgs` package; no API key) for matching pages,
-  * also query Wikipedia's search API directly since it is the #1 copy source.
+  * ask web search engines (via the `ddgs` package; no API key) for matching pages,
+  * query Wikipedia's search API directly since it is the #1 copy source,
+  * query Europe PMC and Crossref for papers whose abstracts may have been copied.
+
+Privacy: queries are fragments of the user's document. They are sent to the search providers (that
+is unavoidable for a web check and is disclosed on /privacy) but are never written to logs, and the
+local cache is keyed by a hash of the query rather than its text.
 """
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import re
 import time
@@ -18,10 +24,14 @@ from dataclasses import dataclass, field
 import httpx
 
 from .. import cache, config
-from ..textproc import Sentence, content_words
+from ..textproc import Sentence, content_words, tokenize_words, word_tokens
 
 log = logging.getLogger(__name__)
 _pool = ThreadPoolExecutor(max_workers=3)  # gentle on the free search engines
+_UA = {"User-Agent": "burstai/0.2 (open-source plagiarism checker)"}
+SEARCH_TTL = 7 * 86400
+# sponsored / tracking redirects that search front-ends mix into results
+_AD_URL = re.compile(r"bing\.com/aclick|duckduckgo\.com/y\.js|googleadservices\.|doubleclick\.net|/aclk\?|[?&]ad_domain=", re.I)
 
 
 @dataclass
@@ -30,7 +40,12 @@ class Candidate:
     title: str = ""
     snippet: str = ""
     queries: list[str] = field(default_factory=list)
-    origin: str = "web"   # web | wikipedia | corpus
+    origin: str = "web"        # web | wikipedia | academic | corpus
+    text: str | None = None    # already-known full text (academic abstracts); skips the page fetch
+
+
+def _k(s: str) -> str:
+    return hashlib.sha256(s.encode("utf-8")).hexdigest()[:40]
 
 
 def build_queries(sentences: list[Sentence], max_queries: int) -> list[str]:
@@ -49,7 +64,6 @@ def build_queries(sentences: list[Sentence], max_queries: int) -> list[str]:
 
     queries: list[str] = []
     seen: set[str] = set()
-    # spread picks across the document rather than clustering
     for _, s in scored:
         phrase = _phrase(s.text)
         key = phrase.lower()
@@ -63,7 +77,7 @@ def build_queries(sentences: list[Sentence], max_queries: int) -> list[str]:
 
 
 def _phrase(text: str, lo: int = 8, hi: int = 12) -> str:
-    words = re.findall(r"[A-Za-z0-9][A-Za-z0-9'’-]*", text)
+    words = word_tokens(text)
     if len(words) < lo:
         return " ".join(words)
     # choose the window with the longest average word length (most distinctive)
@@ -76,11 +90,19 @@ def _phrase(text: str, lo: int = 8, hi: int = 12) -> str:
     return " ".join(best)
 
 
-SEARCH_TTL = 7 * 86400
+def _terms(query: str, n: int = 6) -> str:
+    """The most distinctive content words of a phrase query (for keyword-style APIs)."""
+    cw = sorted(set(content_words(tokenize_words(query))), key=len, reverse=True)[:n]
+    return " ".join(cw) if len(cw) >= 2 else ""
 
 
+def _strip_tags(s: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", s or "")).strip()
+
+
+# ----------------------------------------------------------------------------- web search
 def _ddg_search(query: str, n: int) -> list[Candidate]:
-    cached = cache.get("search", query, SEARCH_TTL)
+    cached = cache.get("search", _k(query), SEARCH_TTL)
     if cached is not None:
         return [Candidate(url=r["url"], title=r["title"], snippet=r["snippet"], queries=[query]) for r in cached]
 
@@ -96,77 +118,143 @@ def _ddg_search(query: str, n: int) -> list[Candidate]:
             definitive = True
             break
         except Exception as e:  # noqa: BLE001 - network / rate-limit; degrade gracefully
-            msg = str(e)
-            if "No results" in msg:
-                log.debug("ddgs: no results for %r", query)  # normal for original sentences
-                definitive = True
+            if "No results" in str(e):
+                definitive = True  # normal for original sentences
                 break
-            log.warning("ddgs(%s) failed for %r: %s", backend, query, msg[:100])
+            log.warning("web search backend %s failed (%s)", backend, type(e).__name__)  # never log the query text
             time.sleep(1.0 * (attempt + 1))
     out = []
     for r in rows:
         url = r.get("href") or r.get("url") or ""
-        if url.startswith("http"):
+        if url.startswith("http") and not _AD_URL.search(url):
             out.append(Candidate(url=url, title=r.get("title", ""), snippet=r.get("body", ""), queries=[query]))
     if out or definitive:
-        cache.put("search", query, [{"url": c.url, "title": c.title, "snippet": c.snippet} for c in out])
+        cache.put("search", _k(query), [{"url": c.url, "title": c.title, "snippet": c.snippet} for c in out])
     return out
 
 
 async def _wiki_search(client: httpx.AsyncClient, query: str, n: int = 3) -> list[Candidate]:
-    # Wikipedia's search is strict about exact phrases; use the most distinctive content words instead.
-    cw = sorted(set(content_words(query.strip('"').lower().split())), key=len, reverse=True)[:5]
-    if len(cw) < 2:
+    terms = _terms(query, 5)
+    if not terms:
         return []
-    terms = " ".join(cw)
-    cached = cache.get("wiki", terms, SEARCH_TTL)
+    cached = cache.get("wiki", _k(terms), SEARCH_TTL)
     if cached is not None:
         return [Candidate(url=r["url"], title=r["title"], snippet=r["snippet"], queries=[query], origin="wikipedia") for r in cached]
     try:
         r = await client.get(
             "https://en.wikipedia.org/w/api.php",
             params={"action": "query", "list": "search", "srsearch": terms, "format": "json", "srlimit": n},
-            headers={"User-Agent": "burstai/0.1 (open-source plagiarism checker)"},
-            timeout=8,
+            headers=_UA, timeout=8,
         )
         r.raise_for_status()
         hits = r.json().get("query", {}).get("search", [])
     except Exception as e:  # noqa: BLE001
-        log.debug("wikipedia search failed: %s", e)
+        log.debug("wikipedia search failed (%s)", type(e).__name__)
         return []
     out = []
     for h in hits:
         title = h.get("title", "")
         url = "https://en.wikipedia.org/wiki/" + title.replace(" ", "_")
-        snippet = re.sub(r"<[^>]+>", "", h.get("snippet", ""))
-        out.append(Candidate(url=url, title=title, snippet=snippet, queries=[query], origin="wikipedia"))
-    cache.put("wiki", terms, [{"url": c.url, "title": c.title, "snippet": c.snippet} for c in out])
+        out.append(Candidate(url=url, title=title, snippet=_strip_tags(h.get("snippet", "")), queries=[query], origin="wikipedia"))
+    cache.put("wiki", _k(terms), [{"url": c.url, "title": c.title, "snippet": c.snippet} for c in out])
     return out
 
 
-async def find_candidates(sentences: list[Sentence], deep: bool = False) -> tuple[list[Candidate], list[str]]:
+# ----------------------------------------------------------------------------- open academic indexes
+def _acad_from_cache(rows: list[dict], query: str) -> list[Candidate]:
+    return [Candidate(url=r["url"], title=r["title"], queries=[query], origin="academic", text=r["text"]) for r in rows]
+
+
+async def _europepmc(client: httpx.AsyncClient, query: str, n: int = 3) -> list[Candidate]:
+    """Europe PMC: free, key-less, returns abstracts (life sciences, plus many preprints)."""
+    terms = _terms(query)
+    if not terms:
+        return []
+    cached = cache.get("epmc", _k(terms), SEARCH_TTL)
+    if cached is not None:
+        return _acad_from_cache(cached, query)
+    try:
+        r = await client.get(
+            "https://www.ebi.ac.uk/europepmc/webservices/rest/search",
+            params={"query": terms, "format": "json", "resultType": "core", "pageSize": n},
+            headers=_UA, timeout=10,
+        )
+        r.raise_for_status()
+        items = r.json().get("resultList", {}).get("result", [])
+    except Exception as e:  # noqa: BLE001
+        log.debug("europepmc failed (%s)", type(e).__name__)
+        return []
+    rows = []
+    for it in items:
+        abstract = _strip_tags(it.get("abstractText", ""))
+        title = _strip_tags(it.get("title", ""))
+        if len(abstract) < 200:
+            continue
+        doi = it.get("doi")
+        url = f"https://doi.org/{doi}" if doi else f"https://europepmc.org/article/{it.get('source', 'MED')}/{it.get('id', '')}"
+        rows.append({"url": url, "title": title or url, "text": f"{title}. {abstract}"})
+    cache.put("epmc", _k(terms), rows)
+    return _acad_from_cache(rows, query)
+
+
+async def _crossref(client: httpx.AsyncClient, query: str, n: int = 3) -> list[Candidate]:
+    """Crossref: free, key-less; only works that deposit an abstract are useful to us."""
+    terms = _terms(query)
+    if not terms:
+        return []
+    cached = cache.get("crossref", _k(terms), SEARCH_TTL)
+    if cached is not None:
+        return _acad_from_cache(cached, query)
+    try:
+        r = await client.get(
+            "https://api.crossref.org/works",
+            params={"query.bibliographic": terms, "rows": n, "filter": "has-abstract:true", "select": "title,DOI,abstract"},
+            headers=_UA, timeout=10,
+        )
+        r.raise_for_status()
+        items = r.json().get("message", {}).get("items", [])
+    except Exception as e:  # noqa: BLE001
+        log.debug("crossref failed (%s)", type(e).__name__)
+        return []
+    rows = []
+    for it in items:
+        abstract = _strip_tags(it.get("abstract", ""))
+        title = _strip_tags(" ".join(it.get("title") or []))
+        if len(abstract) < 200 or not it.get("DOI"):
+            continue
+        rows.append({"url": f"https://doi.org/{it['DOI']}", "title": title or it["DOI"], "text": f"{title}. {abstract}"})
+    cache.put("crossref", _k(terms), rows)
+    return _acad_from_cache(rows, query)
+
+
+# ----------------------------------------------------------------------------- orchestration
+async def find_candidates(sentences: list[Sentence], deep: bool = False) -> tuple[list[Candidate], list[str], dict]:
+    """Returns (candidates, queries, provider status)."""
     max_q = config.SEARCH_MAX_QUERIES * (2 if deep else 1)
     queries = build_queries(sentences, max_q)
+    status = {"web": 0, "wikipedia": 0, "academic": 0, "timed_out": False}
     if not queries:
-        return [], []
+        return [], [], status
 
     loop = asyncio.get_running_loop()
     per_q = config.SEARCH_RESULTS_PER_QUERY
-    ddg_jobs = [loop.run_in_executor(_pool, _ddg_search, q, per_q) for q in queries]
     async with httpx.AsyncClient(follow_redirects=True) as client:
-        wiki_jobs = [_wiki_search(client, q) for q in queries[: max(3, len(queries) // 2)]]
-        gathered = asyncio.gather(*ddg_jobs, *wiki_jobs, return_exceptions=True)
-        try:
-            results = await asyncio.wait_for(gathered, timeout=config.SEARCH_PHASE_TIMEOUT)
-        except asyncio.TimeoutError:
-            log.warning("search phase exceeded %ss; using what came back", config.SEARCH_PHASE_TIMEOUT)
-            results = [j.result() for j in ddg_jobs if j.done() and not j.cancelled() and not j.exception()]
+        tasks: list[asyncio.Future] = [loop.run_in_executor(_pool, _ddg_search, q, per_q) for q in queries]
+        side = queries[: max(3, len(queries) // 2)]
+        tasks += [asyncio.ensure_future(_wiki_search(client, q)) for q in side]
+        tasks += [asyncio.ensure_future(_europepmc(client, q)) for q in side[:4]]
+        tasks += [asyncio.ensure_future(_crossref(client, q)) for q in side[:4]]
+        done, pending = await asyncio.wait(tasks, timeout=config.SEARCH_PHASE_TIMEOUT)
+        for t in pending:
+            t.cancel()
+        status["timed_out"] = bool(pending)
 
     merged: dict[str, Candidate] = {}
-    for res in results:
-        if isinstance(res, Exception):
+    for t in done:
+        if t.cancelled() or t.exception():
             continue
-        for c in res:
+        for c in t.result():
+            status["web" if c.origin == "web" else c.origin] = status.get("web" if c.origin == "web" else c.origin, 0) + 1
             key = _canon(c.url)
             if key in merged:
                 merged[key].queries.extend(c.queries)
@@ -174,7 +262,7 @@ async def find_candidates(sentences: list[Sentence], deep: bool = False) -> tupl
                 merged[key] = c
     # pages hit by several distinct queries are the most promising; rank them first
     ranked = sorted(merged.values(), key=lambda c: -len(set(c.queries)))
-    return ranked[: config.SEARCH_MAX_CANDIDATES], queries
+    return ranked[: config.SEARCH_MAX_CANDIDATES], queries, status
 
 
 def _canon(url: str) -> str:

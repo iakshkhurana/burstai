@@ -6,8 +6,7 @@
 <title>My writing — BurstAI</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Lexend:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/fonts.css">
 <link rel="stylesheet" href="/static/css/burst.css">
 <link rel="stylesheet" href="/static/css/mobile.css">
 </head>
@@ -48,6 +47,20 @@
   <section class="recent-card" id="reports">
     <h2>Recent scans</h2>
     <div class="recent-list" id="recent"></div>
+  </section>
+
+  <section class="privacy-card" aria-labelledby="pc-title">
+    <h2 id="pc-title">Your data</h2>
+    <p>BurstAI never stores your essays. This browser remembers the titles and scores of recent scans; an account additionally keeps the scores of saved scans. See the <a href="/privacy">privacy notice</a>.</p>
+    <div class="pc-acts">
+      <button type="button" class="btn" id="clear-device">Clear history on this device</button>
+      <button type="button" class="btn danger" id="delete-account" hidden>Delete my account</button>
+    </div>
+    <form id="delete-form" class="delete-form" hidden>
+      <label class="field"><span>Enter your password to permanently delete your account and saved scans</span><input type="password" name="password" autocomplete="current-password" maxlength="200" required></label>
+      <div class="pc-acts"><button type="submit" class="btn danger">Delete everything</button><button type="button" class="btn" id="delete-cancel">Cancel</button></div>
+      <div class="auth-err" id="delete-err" role="alert" hidden></div>
+    </form>
   </section>
 </main>
 

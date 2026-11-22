@@ -1,5 +1,9 @@
-"""A tiny local corpus (SQLite) so a teacher / institution can compare submissions against
-each other and against their own document bank - the part of Turnitin that is its real moat."""
+"""A private document bank per owner (SQLite) so a teacher can compare submissions against their
+own material - the part of Turnitin that is its real moat.
+
+Every row belongs to an *owner* ("local" on a single-user machine, "u<id>" for an account). Documents
+are only ever listed for, matched against, or deleted by their owner.
+"""
 from __future__ import annotations
 
 import json
@@ -12,6 +16,8 @@ from ..fingerprint import Fingerprint, winnow
 from ..textproc import tokenize_words
 
 _DB = config.DATA_DIR / "corpus.sqlite3"
+MAX_DOCS_PER_OWNER = 200
+MAX_DOC_CHARS = 1_000_000
 
 
 @dataclass
@@ -23,44 +29,61 @@ class CorpusDoc:
 
 
 def _conn() -> sqlite3.Connection:
-    c = sqlite3.connect(_DB)
+    c = sqlite3.connect(_DB, timeout=10)
     c.execute(
         "CREATE TABLE IF NOT EXISTS docs (id INTEGER PRIMARY KEY, title TEXT, text TEXT, "
-        "hashes TEXT, n_words INTEGER, added REAL)"
+        "hashes TEXT, n_words INTEGER, added REAL, owner TEXT NOT NULL DEFAULT 'local')"
     )
+    cols = {r[1] for r in c.execute("PRAGMA table_info(docs)")}
+    if "owner" not in cols:  # migrate databases created before per-owner corpora
+        c.execute("ALTER TABLE docs ADD COLUMN owner TEXT NOT NULL DEFAULT 'local'")
+    c.execute("CREATE INDEX IF NOT EXISTS docs_owner ON docs(owner)")
     return c
 
 
-def add(title: str, text: str) -> CorpusDoc:
+def add(owner: str, title: str, text: str) -> CorpusDoc:
+    text = text[:MAX_DOC_CHARS]
     words = tokenize_words(text)
     fp = winnow(words)
     with _conn() as c:
+        if c.execute("SELECT COUNT(*) FROM docs WHERE owner=?", (owner,)).fetchone()[0] >= MAX_DOCS_PER_OWNER:
+            raise ValueError(f"Document bank is full ({MAX_DOCS_PER_OWNER} documents). Remove some first.")
         cur = c.execute(
-            "INSERT INTO docs (title, text, hashes, n_words, added) VALUES (?,?,?,?,?)",
-            (title, text, json.dumps(list(fp.hashes)), len(words), time.time()),
+            "INSERT INTO docs (title, text, hashes, n_words, added, owner) VALUES (?,?,?,?,?,?)",
+            (title[:200], text, json.dumps(list(fp.hashes)), len(words), time.time(), owner),
         )
-        return CorpusDoc(cur.lastrowid, title, time.time(), len(words))
+        return CorpusDoc(cur.lastrowid, title[:200], time.time(), len(words))
 
 
-def list_docs() -> list[CorpusDoc]:
+def list_docs(owner: str) -> list[CorpusDoc]:
     with _conn() as c:
-        rows = c.execute("SELECT id, title, added, n_words FROM docs ORDER BY added DESC").fetchall()
+        rows = c.execute("SELECT id, title, added, n_words FROM docs WHERE owner=? ORDER BY added DESC", (owner,)).fetchall()
     return [CorpusDoc(*r) for r in rows]
 
 
-def delete(doc_id: int) -> bool:
+def count_all() -> int:
     with _conn() as c:
-        return c.execute("DELETE FROM docs WHERE id=?", (doc_id,)).rowcount > 0
+        return c.execute("SELECT COUNT(*) FROM docs").fetchone()[0]
 
 
-def candidates(doc_fp: Fingerprint, min_overlap: float = 0.02) -> list[tuple[str, str, str, float]]:
-    """(url-ish id, title, text, overlap) for corpus docs sharing fingerprints with the submission."""
+def delete(owner: str, doc_id: int) -> bool:
+    with _conn() as c:
+        return c.execute("DELETE FROM docs WHERE id=? AND owner=?", (doc_id, owner)).rowcount > 0
+
+
+def delete_owner(owner: str) -> int:
+    with _conn() as c:
+        return c.execute("DELETE FROM docs WHERE owner=?", (owner,)).rowcount
+
+
+def candidates(doc_fp: Fingerprint, owner: str, min_overlap: float = 0.02) -> list[tuple[str, str, str, float]]:
+    """(url-ish id, title, text, overlap) for the owner's documents sharing fingerprints with the submission."""
     want = doc_fp.hash_set
     if not want:
         return []
     out = []
     with _conn() as c:
-        for doc_id, title, text, hashes in c.execute("SELECT id, title, text, hashes FROM docs"):
+        for doc_id, title, text, hashes in c.execute("SELECT id, title, text, hashes FROM docs WHERE owner=?", (owner,)):
             hs = set(json.loads(hashes))
             ov = len(want & hs) / len(want)
             if ov >= min_overlap:

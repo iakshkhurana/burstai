@@ -12,9 +12,9 @@ binding = "ASSETS"
 # Let the Worker see every request first (pages need PUBLIC_URL injected and noindex headers).
 run_worker_first = true
 
-# D1 (free tier) holds users, sessions, saved scans and saved reports.
-# Create it once:  wrangler d1 create burstai   -> paste the database_id below, then:
-#                  wrangler d1 execute burstai --remote --file=schema.sql
+# D1 (free tier) holds users, sessions, saved scans, signed report copies and rate-limit counters.
+# Create it once in the dashboard (or `wrangler d1 create burstai`) and paste the id below.
+# Tables are created automatically by the Worker on first use.
 [[d1_databases]]
 binding = "DB"
 database_name = "burstai"
@@ -23,10 +23,11 @@ database_id = "c34acf33-fe51-4f8a-82e1-b30cde48466e"
 [vars]
 # Public URL of the deployed site (no trailing slash) - used for canonical / sitemap / OG links.
 PUBLIC_URL = "https://burstai.online"
-# Where the Python engine (app/main.py) is running. Workers cannot run PyTorch, so the engine
-# lives on any always-on machine and is reached over HTTPS, e.g. a Cloudflare Tunnel to your
-# laptop/PC, a free Oracle/Fly/Render VM, or a cheap VPS. See DEPLOY.md.
-ENGINE_URL = "https://mails-supreme-fuzzy-provisions.trycloudflare.com"
+# Fallback address of the Python engine. Normally the engine registers its current (tunnel) address
+# itself via scripts/start_engine.ps1, which takes precedence; set this only for a fixed address
+# (named tunnel or VM). See DEPLOY.md.
+ENGINE_URL = ""
 
-# Secrets (set with `wrangler secret put NAME`):
-#   ENGINE_TOKEN   shared secret the Worker sends as X-Engine-Token; set BURSTAI_ENGINE_TOKEN on the engine to the same value
+# Secret (dashboard: Settings -> Variables and Secrets -> type "Secret", or `wrangler secret put ENGINE_TOKEN`):
+#   ENGINE_TOKEN   shared secret sent to the engine as X-Engine-Token, and the key that verifies signed
+#                  results. Must equal BURSTAI_ENGINE_TOKEN on the engine. Never put it in this file.

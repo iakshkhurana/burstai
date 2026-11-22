@@ -1,184 +1,122 @@
-# burstai
+# BurstAI
 
-**Free, open-source plagiarism + AI-content + grammar checker that runs on your own machine.**
-No account, no word cap, no credits, no upload to a vendor. The goal is simple: make what
-Turnitin, Quetext, Copyscape and Scribbr charge for available to every student and teacher for free.
+**Free, open-source plagiarism checker, AI-writing estimator and grammar checker that shows its work.**
+Every flag is linked to the source it matched or the reason it was raised, so a person makes the
+final call instead of a number.
+
+Live: <https://burstai.online> · Licence: MIT · [Privacy](static/privacy.html) · [Responsible use](static/terms.html) · [Security](SECURITY.md)
 
 ```
-run.bat            # Windows: creates .venv, installs deps, starts http://127.0.0.1:8000
+run.bat                                   # Windows: creates .venv, installs deps, starts http://127.0.0.1:8000
 # or
 python -m venv .venv && .venv/Scripts/pip install -r requirements.txt
+bash scripts/download_models.sh           # resumable, ~1 GB (distilgpt2, gpt2, MiniLM)
 .venv/Scripts/python -m uvicorn app.main:app
 ```
 
-First start downloads two small language models (gpt2 ~500 MB, gpt2-medium ~1.5 GB) and a
-sentence-embedding model (~90 MB) from Hugging Face. After that everything except web search
-and grammar works offline.
+Try it with the bundled sample: `/check?sample=1`.
 
 ---
 
-## How the commercial tools actually work (and what we copied)
+## Honest status
 
-### Plagiarism checkers: Turnitin, Copyscape, Quetext, PlagScan, Unicheck, Scribbr
+Read this before relying on it.
 
-There is **very little machine learning** in classic plagiarism detection. The pipeline is:
-
-1. **Normalise** the text (lower-case, strip punctuation).
-2. **Fingerprint** it: hash every k-gram of words and keep a sparse, position-aware subset
-   using *winnowing* (Schleimer, Wilkerson & Aiken 2003 - the MOSS algorithm). Any shared run
-   of roughly 8+ words between two documents is guaranteed to share a fingerprint.
-3. **Look the fingerprints up in a gigantic index**: the open web crawl, publisher databases
-   (Elsevier, Springer...), and, for Turnitin, every student paper ever submitted to it.
-4. **Report** the matched spans with a *similarity score* = matched words / total words.
-
-Their real moat is step 3, the private database, not the algorithm. Scribbr and Quetext are
-literally resellers of Turnitin's index. Newer "paraphrase detection" layers add sentence
-embeddings to catch rewrites, which is the one place ML appears.
-
-**burstai does the same four steps**, with the index replaced by live, free retrieval:
-distinctive exact-phrase queries to DuckDuckGo and the Wikipedia API, page download and
-boilerplate removal, then winnowing + fuzzy matching + MiniLM sentence embeddings for
-paraphrase. You can also build your own **local corpus** (previous submissions, course readings)
-in SQLite, which is exactly what institutions pay Turnitin for.
-
-### AI-content detectors: Turnitin AI, GPTZero, Originality.ai, Copyleaks
-
-These **are** ML, and they work on one insight: LLM text is *statistically predictable*.
-
-| Method | Used by | Idea |
+| Area | What works | Limits you must know |
 |---|---|---|
-| Perplexity + burstiness | GPTZero (original) | A language model is rarely surprised by LLM text; humans vary sentence-to-sentence |
-| Fine-tuned classifier | Turnitin, Originality, Copyleaks | RoBERTa-style model trained on millions of human/AI pairs; opaque, confident, decays as models change |
-| DetectGPT / Fast-DetectGPT | research | Perturb the text; AI text sits at a probability *peak*, human text does not |
-| **Binoculars** (Hans et al., ICML 2024) | research, SOTA zero-shot | Perplexity divided by *cross*-perplexity between two related models; cancels the "simple topic" confound |
-| Watermarking (SynthID) | Google only | Needs the generator's cooperation; nothing else can read it |
+| **Plagiarism** | Winnowing fingerprints + fuzzy + embedding (paraphrase) matching against pages found by live search, Wikipedia, Europe PMC / Crossref abstracts, and your own private document bank. Shows the matched source text per sentence. | Recall depends on **free, key-less web search**, which is rate-limited and sometimes returns nothing. When that happens the UI and the signed report say so explicitly. It cannot see paywalled content or Turnitin's private archive of student papers. A low score is not proof of originality. |
+| **AI-writing likelihood** | Binoculars (distilgpt2 / gpt2) + perplexity + stylometry, optional Gemini second opinion with the user's own key. Sentence-level view, confidence label, reasons. | **English only** (other languages get no score rather than a wrong one). Calibrated on **10 bundled samples**, so treat it as experimental. Unreliable on short texts; can unfairly flag non-native writers; can be evaded. Never use as sole evidence. |
+| **Grammar** | LanguageTool with a noise filter for names / tech terms / variant nags; optional context review by Gemini (user's key). | The public LanguageTool endpoint is rate-limited and meant for light use: self-host it for real traffic (`LANGUAGETOOL_URL`). |
+| **Reports** | Engine-signed results (HMAC). `/v/<id>` shows only signed values; a teacher can paste a document to confirm it is the exact text that was scanned. | A signed report proves the scores were not edited. It does not prove authorship and is not a certificate of originality. |
+| **Accounts** | Email + password, saved scan scores, private document bank, delete-my-account. | No email verification and no password reset yet. |
 
-**burstai implements an ensemble** of Binoculars (gpt2 observer / gpt2-medium performer),
-raw perplexity, sentence-level burstiness, and ~25 explainable stylometric features (LLM-phrase
-density such as *delve / tapestry / testament to*, sentence-length uniformity, missing
-contractions, transitional openers...). If you add a free Gemini key it also asks Gemini for a
-bounded third opinion. Every sentence is coloured so you can see *where* the signal comes from,
-and the report lists the reasons in plain English.
+No detector, commercial or open, is 100% accurate. Anyone who tells you otherwise is selling something.
 
-### Grammar: Grammarly
+## What is stored
 
-Grammarly is a rule engine plus proprietary ML. burstai calls the free public
-[LanguageTool](https://languagetool.org) API (open-source rule engine, 30+ languages, no key),
-or your own self-hosted LanguageTool for unlimited use.
+Nothing of the essay. Scans are processed in memory. Saved scans keep scores, source links and
+per-sentence flags without text. Signed reports keep scores, source links and a SHA-256 fingerprint.
+Logs and caches never contain essay text (cache keys are hashes). See the in-app privacy notice for
+exactly which third parties receive what during a scan.
 
----
+## How it works
 
-## Honest accuracy statement
+### Plagiarism (what Turnitin-class tools do, minus the private index)
 
-> **No detector is 100% accurate. Not Turnitin, not GPTZero, not this one.**
+1. Split into sentences (Unicode-aware; any space-separated script).
+2. Fingerprint with **winnowing** (Schleimer, Wilkerson & Aiken 2003): any shared run of about 8+ words
+   between two documents shares a fingerprint.
+3. Retrieve candidates: exact-phrase queries for the most distinctive sentences via `ddgs`
+   (key-less metasearch), keyword queries to Wikipedia, Europe PMC and Crossref, plus the caller's
+   private document bank.
+4. Match sentence by sentence: fingerprints (verbatim), `rapidfuzz` token-set ratio (light edits),
+   MiniLM embeddings (paraphrase).
+5. Report similarity = matched words / counted words, with quotes, citations and the reference
+   list optionally excluded, and with **coverage** (how many pages of each kind were compared).
 
-Turnitin itself claims ~1% false positives per document at the 20% threshold and independent
-studies have found materially worse, especially for non-native English writers and for text
-passed through a "humanizer". Any tool advertising 100% is lying to you.
+### AI-writing likelihood
 
-What burstai does differently is *honesty and transparency*: it shows the raw numbers, explains
-every signal, reports a confidence level, refuses to be confident on texts under ~120 words, and
-never hides a sentence-level view behind a single scary percentage.
+Ensemble of the Binoculars score (Hans et al., ICML 2024: perplexity divided by cross-perplexity of
+two related models), raw perplexity, ~25 stylometric features, and optionally Gemini. Calibration
+constants live at the top of `app/aidetect/engine.py`; re-measure with
+`python -m tests.calibrate` after adding your own labelled samples to `samples/`
+(name human ones `*human*`). The "Likely AI-generated" label needs p ≥ 0.70 and non-low confidence.
 
-Run `.venv/Scripts/python -m tests.calibrate` to see the per-sample statistics on the bundled
-`samples/` and re-tune the constants at the top of `app/aidetect/engine.py` for your own data.
-Add your own human/AI examples to `samples/` (name human ones `*human*`) to improve calibration.
+### Signed reports
 
-## Robustness against "humanizers"
-
-Tools like *Turnitout-Humanizer* evade detectors by (a) swapping synonyms to break n-gram
-matches, (b) reshaping clauses, (c) stripping zero-width characters and metadata. burstai is
-designed with those in mind:
-
-* paraphrase layer uses **sentence embeddings**, which survive synonym swaps;
-* fuzzy token-set matching tolerates reordering and insertions;
-* the AI ensemble leans on **Binoculars**, which is harder to game than perplexity alone;
-* stylometry flags the *result* of synonym-swapping (unnatural word choice raises perplexity
-  unevenly, visible as patchy sentence scores).
-
-It is still an arms race. Expect determined adversaries to win sometimes.
-
----
-
-## The app
-
-Three pages, implemented from the BurstAI Claude Design canvas:
-
-| Route | What it does |
-|---|---|
-| `/` | Landing page: paste or drop a .docx/.pdf/.txt, pick Plagiarism / AI detector / Grammar, start a scan. Shows your local scan history. |
-| `/check` | Checker workspace: the essay with per-sentence highlights, three layers (Plagiarism / AI writing / Grammar), source list that isolates matches, exclude quotes / bibliography toggles, grammar fixes you can accept or dismiss (the text updates live), local corpus management. |
-| `/report` | Originality report: score cards, plain-English summary, sentence-by-sentence table, sources with an APA/MLA/Harvard/IEEE citation generator, printable PDF, and a certificate with a verification link (`/v/<id>`) served by your own instance. |
-
-| `/login`, `/signup` | Free accounts (SQLite locally, D1 on Cloudflare): PBKDF2-hashed passwords, HttpOnly session cookies. Optional: everything works logged out. |
-| `/me` | "My writing": streak, originality trend and every saved scan (synced across devices when logged in, kept on-device otherwise). |
-
-All pages are responsive: the phone layouts follow the BurstAI mobile canvas (bottom navigation,
-document + results bottom sheet on the checker, fanned score deck and flagged-sentence cards on the report).
-
-Try it instantly with the bundled sample essay: `/check?sample=1`.
-
-**Deploying** (including Cloudflare Workers + D1 for the site and accounts, with the Python engine on
-any machine behind a free Cloudflare Tunnel): see [DEPLOY.md](DEPLOY.md).
+`/api/check` returns an attestation: canonical JSON of the scores, sources, coverage, timestamp and
+`sha256(normalised text)`, with an HMAC-SHA256 signature. The report id is derived from the
+signature. `/api/reports` stores a copy only if the signature verifies, and never overwrites.
 
 ## Architecture
 
 ```
 app/
-  main.py               FastAPI: /api/check /api/extract /api/corpus /api/health /api/auth/* /api/scans /api/reports, serves static/
-  auth.py               accounts, sessions, saved scans (SQLite)
-  reports.py            public verification copies of reports (/v/<id>)
-  cache.py              search-result + page cache (SQLite, TTL)
-  textproc.py           sentence splitting with offsets, quote / citation / reference detection
-  fingerprint.py        winnowing fingerprints
+  main.py               FastAPI: engine endpoints, accounts, signed reports, pages, security headers
+  security.py           rate limiter, attestations (HMAC), SSRF guard, CSP / headers
+  textproc.py           Unicode sentence splitting with offsets; quote / citation / reference detection; English gate
+  fingerprint.py        winnowing
   extract.py            docx / pdf / html / txt -> text
-  grammar.py            LanguageTool client
-  plagiarism/
-    search.py           distinctive phrase queries -> DuckDuckGo + Wikipedia candidates
-    fetch.py            async download + trafilatura boilerplate removal
-    matcher.py          winnowing + rapidfuzz + MiniLM paraphrase matching
-    corpus.py           local SQLite document bank
-    engine.py           orchestration, scoring, per-sentence report
-  aidetect/
-    lm.py               GPT-2 pair: per-token log-probs, perplexity, Binoculars
-    stylometry.py       explainable features + heuristic score
-    llm_judge.py        optional Gemini judge
-    engine.py           ensemble + sentence colouring + confidence
-static/                 the site (no build step): index / check / report / auth / me + css/js
-cloudflare/             Worker (static assets + auth on D1 + engine proxy), wrangler.toml, schema.sql
-scripts/                download_models.sh (resumable), make_release.py (zip + CHANGELOG)
-samples/                calibration texts
-tests/                  pytest unit tests, calibrate.py, shot.mjs (headless screenshot driver)
+  grammar.py            LanguageTool client + noise filter + optional Gemini review
+  llm.py                optional Gemini client (user-supplied key; failure-safe)
+  auth.py               accounts, sessions, saved scans (SQLite)
+  reports.py            signed verification copies; allow-list sanitiser for saved views
+  cache.py              hashed-key cache for search results and fetched public pages
+  plagiarism/           search.py · fetch.py (SSRF-guarded) · matcher.py · corpus.py (per-owner) · engine.py
+  aidetect/             lm.py (perplexity, Binoculars) · stylometry.py · llm_judge.py · engine.py
+static/                 the site: index / check / report / auth / me / privacy / terms / 404, css, js, self-hosted fonts
+cloudflare/             Worker: site + accounts + signed reports on D1, proxy to the engine
+scripts/                download_models.sh · fetch_fonts.py · start_engine.ps1 · make_release.py
+tests/                  test_core.py · test_api.py · calibrate.py · shot.mjs (headless screenshots)
 ```
+
+## Tests
+
+```
+pip install -r requirements-ci.txt
+python -m pytest tests/test_core.py tests/test_api.py -q      # no models, no network needed
+```
+
+They cover fingerprinting, Unicode handling, the English gate, the grammar noise filter, the SSRF
+guard, rate limits, security headers/CSP, signed-report round trips and forgery rejection, report
+sanitising, account flows, and per-owner isolation of scans and document banks. CI runs them on
+every push (`.github/workflows/ci.yml`).
 
 ## Configuration
 
-Copy `.env.example` to `.env`. Notable knobs:
+Copy `.env.example` to `.env`. Everything is optional; see `DEPLOY.md` for the Cloudflare setup.
 
-* `GEMINI_API_KEY` - optional judge (free tier at aistudio.google.com).
-* `BURSTAI_OBSERVER_MODEL` / `BURSTAI_PERFORMER_MODEL` - swap in a stronger pair
-  (e.g. Qwen2.5-1.5B / -Instruct) if you have the VRAM; re-run calibration afterwards.
-* `BURSTAI_USE_BINOCULARS=0` - perplexity-only mode on weak machines.
-* `LANGUAGETOOL_URL` - point at a self-hosted LanguageTool for unlimited grammar checks.
+## Production checklist (things code cannot do for you)
 
-## API
+1. Run the engine on an always-on machine with a **named** Cloudflare Tunnel or a VM, not a laptop.
+2. Self-host LanguageTool, and use a search API you have an agreement with if traffic grows
+   (see `THIRD_PARTY.md`).
+3. Build a labelled evaluation set from your own users' domain and re-calibrate the AI thresholds;
+   publish the measured false-positive rate.
+4. Have the privacy notice and terms reviewed for your jurisdiction, and add a real contact address.
+5. Add email verification and password reset (needs a mail provider).
+6. Back up the D1 database; enable Dependabot.
 
-```
-POST /api/check     {"text": "...", "options": {"plagiarism": true, "ai": true, "grammar": true,
-                     "exclude_quotes": true, "exclude_references": true, "deep_search": false}}
-POST /api/extract   multipart file -> {"text": ...}
-GET  /api/corpus    | POST /api/corpus (multipart file) | DELETE /api/corpus/{id}
-GET  /api/health
-```
+## Licence
 
-## Roadmap
-
-* Semantic Scholar / arXiv / CrossRef retrieval for academic sources
-* Cross-language plagiarism (translate-then-match) via multilingual MiniLM
-* Trainable classifier head on top of the signals once a labelled dataset is collected
-* Browser extension and LMS (Moodle / Google Classroom) plug-in
-* Docker image bundling LanguageTool
-
-## License
-
-MIT. Use it, fork it, host it for your school.
+MIT (see `LICENSE`). Third-party models, fonts and services are listed in `THIRD_PARTY.md`.

@@ -23,8 +23,14 @@ _ABBREV = re.compile(
     r"\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St|vs|etc|e\.g|i\.e|Fig|No|Vol|pp|al|Inc|Ltd|Co|U\.S|U\.K)\.$",
     re.IGNORECASE,
 )
-_SENT_END = re.compile(r"([.!?]+[\"'”’)\]]*)(\s+)")
-_WORD = re.compile(r"[A-Za-z0-9][A-Za-z0-9'’-]*")
+# Sentence terminators include the Devanagari danda so Hindi and friends segment correctly.
+_SENT_END = re.compile(r"([.!?।॥]+[\"'”’)\]]*)(\s+)")
+try:  # Unicode-aware words (letters + combining marks + digits) in any script
+    import regex as _rx
+
+    _WORD = _rx.compile(r"[\p{L}\p{N}][\p{L}\p{M}\p{N}'’-]*")
+except ImportError:  # pragma: no cover - ASCII-ish fallback
+    _WORD = re.compile(r"[^\W_][\w'’-]*")
 _REF_HEADING = re.compile(
     r"^\s*(references?|bibliography|works\s+cited|sources?|citations?|literature\s+cited)\s*:?\s*$",
     re.IGNORECASE | re.MULTILINE,
@@ -57,6 +63,11 @@ class Sentence:
 def tokenize_words(text: str) -> list[str]:
     """Lower-cased alphanumeric tokens (apostrophes/hyphens kept inside words)."""
     return [w.lower().replace("’", "'") for w in _WORD.findall(text)]
+
+
+def word_tokens(text: str) -> list[str]:
+    """Words in their original case (used to build search phrases)."""
+    return _WORD.findall(text)
 
 
 def normalize(text: str) -> str:
@@ -128,3 +139,16 @@ def strip_citations(text: str) -> str:
 
 def content_words(words: list[str]) -> list[str]:
     return [w for w in words if w not in STOPWORDS and len(w) > 2]
+
+
+def english_score(words: list[str]) -> float:
+    """Share of tokens that are common English function words. Ordinary English prose scores
+    roughly 0.30-0.50; other languages (and romanised ones such as Hinglish) score well under 0.15.
+    Used to refuse AI-detection verdicts on text the English-only language models cannot judge."""
+    if not words:
+        return 0.0
+    return sum(1 for w in words if w in STOPWORDS) / len(words)
+
+
+def is_english(words: list[str], threshold: float = 0.15) -> bool:
+    return len(words) < 30 or english_score(words) >= threshold

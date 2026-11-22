@@ -6,12 +6,12 @@
 <title>Log in or sign up — BurstAI</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Lexend:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/fonts.css">
 <link rel="stylesheet" href="/static/css/burst.css">
 <link rel="stylesheet" href="/static/css/mobile.css">
 </head>
 <body class="authpage">
+<a class="skip" href="#form">Skip to form</a>
 
 <header class="topbar">
   <a href="/" class="logo" aria-label="BurstAI home">
@@ -25,12 +25,12 @@
   <section class="auth-card">
     <div class="auth-side" aria-hidden="true">
       <div class="eyebrow">FREE ACCOUNT</div>
-      <h2>Keep every scan. Share verified reports.</h2>
+      <h2>Keep every scan. Share signed reports.</h2>
       <ul>
         <li>All your originality reports in one place</li>
         <li>Track how your writing gets more you</li>
-        <li>Certificates with verification links</li>
-        <li>Still free. Still no word cap.</li>
+        <li>A private document bank only you can see</li>
+        <li>Still free. Delete your account any time.</li>
       </ul>
       <div class="auth-burst spin"><svg width="120" height="120" viewBox="0 0 32 32"><path d="M16 1l3.2 9.1L28 6l-4.1 8.8L31 16l-7.1 1.2L28 26l-8.8-4.1L16 31l-3.2-9.1L4 26l4.1-8.8L1 16l7.1-1.2L4 6l8.8 4.1z" fill="#C6F432" stroke="#0E1B3D" stroke-width=".6" stroke-linejoin="round"/></svg></div>
     </div>
@@ -42,52 +42,19 @@
       <h1 id="h">Welcome back</h1>
       <p class="sub" id="sub">Log in to see your scans and certificates.</p>
       <label class="field" id="f-name" hidden><span>Your name</span><input type="text" name="name" autocomplete="name" placeholder="Aarav Sharma" maxlength="80"></label>
-      <label class="field"><span>Email</span><input type="email" name="email" autocomplete="email" placeholder="you@college.edu" required></label>
-      <label class="field"><span>Password</span><input type="password" name="password" autocomplete="current-password" placeholder="At least 8 characters" minlength="8" required></label>
+      <label class="field"><span>Email</span><input type="email" name="email" autocomplete="email" placeholder="you@college.edu" maxlength="254" required></label>
+      <label class="field"><span>Password</span><input type="password" name="password" autocomplete="current-password" placeholder="At least 8 characters" minlength="8" maxlength="200" required></label>
       <div class="auth-err" id="err" role="alert" hidden></div>
       <button type="submit" class="btn btn-lime btn-lg" id="submit">Log in</button>
-      <p class="auth-switch" id="switch">New here? <a href="/signup" data-mode="signup">Create a free account</a></p>
-      <p class="auth-note">Your essays are never stored — only the report scores you choose to save.</p>
+      <p class="auth-switch" id="switch"></p>
+      <p class="auth-note" id="f-agree" hidden>By creating an account you agree to the <a href="/terms">Terms</a> and <a href="/privacy">Privacy notice</a>.</p>
+      <p class="auth-note">We store your email, a salted hash of your password and the scores of scans you save. Your essays are never stored. There is no password reset by email yet, so keep your password safe.</p>
     </form>
   </section>
 </main>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script src="/static/js/common.js"></script>
-<script>
-(() => {
-  const $ = (id) => document.getElementById(id);
-  const form = $("form"), err = $("err");
-  let mode = location.pathname.endsWith("signup") ? "signup" : "login";
-  const next = new URLSearchParams(location.search).get("next") || "/me";
-  function setMode(m) {
-    mode = m;
-    document.querySelectorAll(".mode").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.mode === m)));
-    const signup = m === "signup";
-    $("f-name").hidden = !signup;
-    $("h").textContent = signup ? "Create your free account" : "Welcome back";
-    $("sub").textContent = signup ? "No card, no trial, no word cap. Just a place for your reports." : "Log in to see your scans and certificates.";
-    $("submit").textContent = signup ? "Create account" : "Log in";
-    $("switch").innerHTML = signup ? 'Already have an account? <a href="/login" data-mode="login">Log in</a>' : 'New here? <a href="/signup" data-mode="signup">Create a free account</a>';
-    form.password.autocomplete = signup ? "new-password" : "current-password";
-    $("switch").querySelector("a").addEventListener("click", (e) => { e.preventDefault(); history.replaceState(null, "", "/" + e.target.dataset.mode + location.search); setMode(e.target.dataset.mode); });
-    err.hidden = true;
-  }
-  document.querySelectorAll(".mode").forEach((b) => b.addEventListener("click", () => { history.replaceState(null, "", "/" + b.dataset.mode + location.search); setMode(b.dataset.mode); }));
-  setMode(mode);
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault(); err.hidden = true;
-    const body = { name: form.name.value, email: form.email.value.trim(), password: form.password.value };
-    if (!body.email || body.password.length < 8) { err.textContent = "Enter your email and a password of at least 8 characters."; err.hidden = false; return; }
-    $("submit").disabled = true;
-    try {
-      await B.api("/api/auth/" + mode, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      B.store.del("me");
-      location.href = next.startsWith("/") ? next : "/me";
-    } catch (ex) { err.textContent = ex.message; err.hidden = false; $("submit").disabled = false; }
-  });
-  B.me().then((u) => { if (u) location.replace(next.startsWith("/") ? next : "/me"); });
-})();
-</script>
+<script src="/static/js/auth.js"></script>
 </body>
 </html>

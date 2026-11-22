@@ -21,7 +21,7 @@
   document.querySelectorAll('a[href="#scan"]').forEach((a) => a.addEventListener("click", (e) => goScan(e, a.dataset.mode)));
   if (location.hash === "#scan") setTimeout(() => goScan(null, null), 50);
 
-  ta.addEventListener("input", () => { count.textContent = `${B.words(ta.value).toLocaleString()} / no limit words`; });
+  ta.addEventListener("input", () => { const n = B.words(ta.value); count.textContent = `${n.toLocaleString()} word${n === 1 ? "" : "s"}`; });
 
   // --- upload + drag & drop
   $("upload").addEventListener("click", () => $("file").click());
@@ -46,6 +46,7 @@
     const text = ta.value.trim();
     if (!text) { B.toast("Paste some text first — or try the sample from the banner."); ta.focus(); return; }
     if (B.words(text) < 20) { B.toast("Add at least 20 words for a meaningful scan."); ta.focus(); return; }
+    if (text.length > 200000) { B.toast("That is too long for one scan (about 30,000 words max). Split it into parts."); return; }
     B.store.set("text", text); B.store.del("result");
     location.href = "/check?mode=" + mode;
   });

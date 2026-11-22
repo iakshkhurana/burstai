@@ -41,6 +41,9 @@ class PlagiarismResult:
     candidates_checked: int
     elapsed: float
     warnings: list[str] = field(default_factory=list)
+    # how many documents of each kind were actually compared; "web" == 0 means the free search
+    # engines did not answer, so the score may be understated (surfaced in the UI and signed report)
+    coverage: dict = field(default_factory=dict)
 
 
 async def check_plagiarism(
@@ -53,6 +56,7 @@ async def check_plagiarism(
     use_corpus: bool = True,
     deep: bool = False,
     sentences: list[Sentence] | None = None,
+    corpus_owner: str | None = None,
 ) -> PlagiarismResult:
     t0 = time.perf_counter()
     warnings: list[str] = []
@@ -77,11 +81,13 @@ async def check_plagiarism(
     titles: dict[str, str] = {}
     origins: dict[str, str] = {}
 
+    status: dict = {}
     if use_web:
         try:
-            cands, queries = await find_candidates(sents, deep=deep)
+            cands, queries, status = await find_candidates(sents, deep=deep)
         except Exception as e:  # noqa: BLE001
-            warnings.append(f"Web search unavailable: {e}")
+            log.warning("search failed (%s)", type(e).__name__)
+            warnings.append("Web search is unavailable right now, so online sources could not be checked.")
         if cands:
             texts = await fetch_all(cands)
             for c in cands:
@@ -89,11 +95,14 @@ async def check_plagiarism(
                 origins[c.url] = c.origin
             if not texts:
                 warnings.append("Found search results but could not download any page text.")
-        elif queries:
-            warnings.append("Web search returned no results (offline, or rate-limited by the search engine).")
+        n_web = sum(1 for u in texts if origins.get(u) == "web")
+        if queries and n_web == 0:
+            warnings.append("The free web search engines did not answer this time, so ordinary web pages were NOT checked. This similarity score may be understated and is not evidence of originality - scan again in a few minutes.")
+        elif status.get("timed_out"):
+            warnings.append("Some searches were still running when the time budget ended, so web coverage is partial.")
 
-    if use_corpus:
-        for cid, title, ctext, _ov in corpus.candidates(doc_fp):
+    if use_corpus and corpus_owner:
+        for cid, title, ctext, _ov in corpus.candidates(doc_fp, corpus_owner):
             texts[cid] = ctext
             titles[cid] = title
             origins[cid] = "corpus"
@@ -161,6 +170,10 @@ async def check_plagiarism(
                 sr.kinds[m.kind] = sr.kinds.get(m.kind, 0) + 1
         ann.append(entry)
 
+    coverage = {k: sum(1 for u in texts if origins.get(u) == k) for k in ("web", "wikipedia", "academic", "corpus")}
+    coverage["web_searched"] = bool(use_web)
+    coverage["complete"] = bool(use_web) and coverage["web"] > 0 and not status.get("timed_out")
+
     denom = max(1, counted_words)
     for sr in per_source.values():
         sr.percent = round(100 * sr.matched_words / denom, 1)
@@ -180,6 +193,7 @@ async def check_plagiarism(
         candidates_checked=len(texts),
         elapsed=round(time.perf_counter() - t0, 2),
         warnings=warnings,
+        coverage=coverage,
     )
 
 

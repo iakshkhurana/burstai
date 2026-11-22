@@ -2,6 +2,7 @@
 window.__errs = [];
 window.addEventListener("error", (e) => window.__errs.push(e.message));
 window.addEventListener("unhandledrejection", (e) => window.__errs.push(String(e.reason)));
+document.addEventListener("securitypolicyviolation", (e) => window.__errs.push(`CSP ${e.violatedDirective} ${e.blockedURI}`));
 window.B = (() => {
   const SRC = [
     { c: "#FF5C7A", t: "#FFD3DC" }, { c: "#FFB020", t: "#FFE6B3" }, { c: "#22C38E", t: "#C6F1E0" },
@@ -9,7 +10,8 @@ window.B = (() => {
     { c: "#7CF2D0", t: "#D3FBEF" }, { c: "#FFB4C6", t: "#FFE3EA" },
   ];
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const words = (s) => (String(s || "").match(/[A-Za-z0-9À-ɏऀ-ॿ][\w'’À-ɏऀ-ॿ-]*/g) || []).length;
+  // same definition of a "word" as the engine: letters/digits of any script, inner marks, apostrophes, hyphens
+  const words = (s) => (String(s || "").match(/[\p{L}\p{N}][\p{L}\p{M}\p{N}'’-]*/gu) || []).length;
   const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u.startsWith("corpus://") ? "your corpus" : u; } };
   const pct = (n, d = 0) => Number(n || 0).toFixed(d) + "%";
   const fmtDate = (d) => new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
@@ -38,12 +40,14 @@ window.B = (() => {
     return { title: w + (words(first) > 7 ? "…" : ""), headingEnd: -1 };
   }
 
-  function reportId(text, date) {
-    let h = 5381; const s = text + "|" + date;
-    for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
-    const al = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; let u = Math.abs(h), o = "";
-    for (let i = 0; i < 6; i++) { o += al[u % al.length]; u = Math.floor(u / al.length) + i * 7; }
-    return "BA-" + o.slice(0, 4) + "-" + o.slice(4);
+  /** Report ids are derived from the engine's signature, so they cannot be chosen or forged. */
+  function reportId(sig) { const s = String(sig || "").toUpperCase(); return /^[0-9A-F]{10,}$/.test(s) ? `BA-${s.slice(0, 5)}-${s.slice(5, 10)}` : ""; }
+
+  /** SHA-256 of the normalised text - identical to app/security.py:text_hash (NFC, collapse whitespace, trim). */
+  async function textHash(text) {
+    const norm = String(text).normalize("NFC").split(/\s+/).filter(Boolean).join(" ");
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(norm));
+    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
   }
 
   let toastT;
@@ -52,7 +56,7 @@ window.B = (() => {
     t.textContent = msg; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 2600);
   }
 
-  const srcKind = (url, origin) => origin === "corpus" ? "Your corpus" : origin === "wikipedia" || /wikipedia\.org/.test(url) ? "Wikipedia" : /doi\.org|arxiv\.org|semanticscholar|openalex|ncbi\.nlm|springer|sciencedirect|jstor|researchgate|\.edu\//.test(url) ? "Academic paper" : "Website";
+  const srcKind = (url, origin) => origin === "corpus" || /^corpus:/.test(url) ? "Your corpus" : origin === "wikipedia" || /wikipedia\.org/.test(url) ? "Wikipedia" : origin === "academic" || /doi\.org|arxiv\.org|europepmc|semanticscholar|openalex|ncbi\.nlm|springer|sciencedirect|jstor|researchgate|\.edu\//.test(url) ? "Academic paper" : "Website";
   const matchDesc = { exact: "near-identical wording", near: "light rewrite of the source", paraphrase: "paraphrase matched by meaning" };
 
   /**
@@ -113,7 +117,8 @@ window.B = (() => {
       similarity: P ? (100 * matchedWords) / countedWords : null, kindWords, matchedWords,
       aiPct, aiLevel, aiFlagged, aiRows, aiVerdict: A?.verdict || "", aiConfidence: A?.confidence || "",
       issues, openIssues: open,
-      warnings: [...(P?.warnings || []), ...(A?.warnings || []), ...(data.plagiarism?.error ? ["Plagiarism check failed: " + data.plagiarism.error] : []), ...(data.ai?.error ? ["AI detection failed: " + data.ai.error] : []), ...(data.grammar && !data.grammar.available && data.grammar.error ? ["Grammar check unavailable: " + data.grammar.error] : [])],
+      attestation: data.attestation || null,
+      warnings: [...(P?.warnings || []), ...(A?.warnings || []), ...(data.plagiarism?.error ? ["Plagiarism: " + data.plagiarism.error] : []), ...(data.ai?.error ? ["AI detection: " + data.ai.error] : []), ...(data.grammar && !data.grammar.available && data.grammar.error ? ["Grammar check is unavailable right now (the free grammar service may be busy). Try again in a minute."] : [])],
     };
   }
 
@@ -224,16 +229,25 @@ window.B = (() => {
     back.innerHTML = `<div class="gm-box">
       <h2 id="gm-title"><span>✦</span>Add your Gemini key</h2>
       <p>Give BurstAI a brain. With your own free Gemini key, grammar suggestions are checked in context (no more "pgvector → pg vector") and the AI detector gets a second opinion with reasons.</p>
-      <ul><li>Free at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> → Create API key</li><li>Stays in <b>this browser only</b>. BurstAI never stores it.</li></ul>
+      <ul><li>Free at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> → Create API key</li><li>Stays in <b>this browser only</b>. BurstAI never stores it.</li><li>While a key is set, the text you scan is also sent to Google Gemini.</li></ul>
       <label>Gemini API key<div class="gm-row"><input id="gm-key" type="password" autocomplete="off" spellcheck="false" placeholder="AIza…" value="${esc(gemini.get())}"><button type="button" class="gm-eye" id="gm-eye" aria-label="Show key">Show</button></div></label>
       <div class="gm-status" id="gm-status" aria-live="polite">${has ? "A key is saved on this device." : ""}</div>
       <div class="gm-acts"><button type="button" class="gm-btn p" id="gm-save">Validate &amp; save</button><button type="button" class="gm-btn" id="gm-cancel">Cancel</button>${has ? '<button type="button" class="gm-btn d" id="gm-remove">Remove key</button>' : ""}</div>
       <div class="gm-small">Without a key everything still works with the rule-based checks.</div>
     </div>`;
+    const opener = document.activeElement;
     document.body.appendChild(back);
     const $ = (id) => back.querySelector("#" + id);
-    const close = () => { back.remove(); document.removeEventListener("keydown", onKey); };
-    const onKey = (e) => { if (e.key === "Escape") close(); };
+    const close = () => { back.remove(); document.removeEventListener("keydown", onKey); if (opener && opener.focus) opener.focus(); };
+    const onKey = (e) => {
+      if (e.key === "Escape") return close();
+      if (e.key !== "Tab") return;
+      // keep keyboard focus inside the dialog
+      const f = [...back.querySelectorAll("a[href], button:not([disabled]), input")];
+      const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
     document.addEventListener("keydown", onKey);
     back.addEventListener("click", (e) => { if (e.target === back) close(); });
     $("gm-cancel").addEventListener("click", close);
@@ -261,5 +275,5 @@ window.B = (() => {
     return b;
   }
 
-  return { SRC, esc, words, host, pct, fmtDate, api, store, titleOf, reportId, toast, summarize, aiWhy, cite, copy, matchDesc, srcKind, me, paintAuth, mountNav, gemini, geminiDialog, geminiChip };
+  return { SRC, esc, words, host, pct, fmtDate, api, store, titleOf, reportId, toast, summarize, aiWhy, cite, copy, matchDesc, srcKind, me, paintAuth, mountNav, gemini, geminiDialog, geminiChip, textHash };
 })();

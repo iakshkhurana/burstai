@@ -30,6 +30,10 @@ PERFORMER_MODEL = _local_or_hub(os.getenv("BURSTAI_PERFORMER_MODEL", "gpt2"))
 USE_BINOCULARS = os.getenv("BURSTAI_USE_BINOCULARS", "1") != "0"
 DEVICE = os.getenv("BURSTAI_DEVICE", "auto")  # auto | cpu | cuda
 MAX_LM_TOKENS = int(os.getenv("BURSTAI_MAX_LM_TOKENS", "1024"))
+# Long documents: score at most this many evenly spaced 1024-token sections (keeps requests bounded).
+MAX_LM_CHUNKS = int(os.getenv("BURSTAI_MAX_LM_CHUNKS", "6"))
+# Set to 1 to never load the language models (CI, tiny machines). AI detection then says so.
+OFFLINE_LM = os.getenv("BURSTAI_OFFLINE_LM", "0") == "1"
 
 # Sentence embedding model for paraphrase detection.
 EMBED_MODEL = _local_or_hub(os.getenv("BURSTAI_EMBED_MODEL", "sentence-transformers/all-MiniLM-L6-v2"))
@@ -38,7 +42,7 @@ EMBED_MODEL = _local_or_hub(os.getenv("BURSTAI_EMBED_MODEL", "sentence-transform
 SEARCH_MAX_QUERIES = int(os.getenv("BURSTAI_SEARCH_MAX_QUERIES", "10"))
 SEARCH_RESULTS_PER_QUERY = int(os.getenv("BURSTAI_SEARCH_RESULTS_PER_QUERY", "4"))
 SEARCH_MAX_CANDIDATES = int(os.getenv("BURSTAI_SEARCH_MAX_CANDIDATES", "24"))
-SEARCH_PHASE_TIMEOUT = float(os.getenv("BURSTAI_SEARCH_PHASE_TIMEOUT", "60"))
+SEARCH_PHASE_TIMEOUT = float(os.getenv("BURSTAI_SEARCH_PHASE_TIMEOUT", "35"))
 FETCH_TIMEOUT = float(os.getenv("BURSTAI_FETCH_TIMEOUT", "12"))
 FETCH_CONCURRENCY = int(os.getenv("BURSTAI_FETCH_CONCURRENCY", "8"))
 FETCH_MAX_BYTES = int(os.getenv("BURSTAI_FETCH_MAX_BYTES", str(3 * 1024 * 1024)))
@@ -62,3 +66,12 @@ ENGINE_TOKEN = os.getenv("BURSTAI_ENGINE_TOKEN", "").strip()
 HOST = os.getenv("BURSTAI_HOST", "127.0.0.1")
 PORT = int(os.getenv("BURSTAI_PORT", "8000"))
 MAX_INPUT_CHARS = int(os.getenv("BURSTAI_MAX_INPUT_CHARS", "200000"))
+MAX_UPLOAD_BYTES = int(os.getenv("BURSTAI_MAX_UPLOAD_BYTES", str(15 * 1024 * 1024)))
+# Each part of a scan (plagiarism / AI / grammar) must finish within this many seconds; a proxy such as
+# Cloudflare cuts requests off at ~100 s, so we return partial results with a clear note instead.
+TASK_TIMEOUT = float(os.getenv("BURSTAI_TASK_TIMEOUT", "80"))
+# Fair-use limits per client IP (scans per hour / per minute).
+RATE_SCANS_PER_HOUR = int(os.getenv("BURSTAI_RATE_SCANS_PER_HOUR", "30"))
+RATE_SCANS_PER_MIN = int(os.getenv("BURSTAI_RATE_SCANS_PER_MIN", "6"))
+# Where the public site lives (the Worker). scripts/start_engine.ps1 registers the tunnel URL there.
+SITE_URL = os.getenv("BURSTAI_SITE_URL", "").rstrip("/")

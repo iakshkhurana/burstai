@@ -1,7 +1,7 @@
 """Language-model signals for AI-text detection.
 
 Two zero-shot statistics computed with a pair of small open causal LMs that share a
-tokenizer (default: gpt2 as *observer*, gpt2-medium as *performer*):
+tokenizer (default: distilgpt2 as *observer*, gpt2 as *performer*):
 
 * **Perplexity** - how "surprised" the model is by each token. LLM output is
   low-perplexity by construction (it was sampled from a similar distribution).
@@ -10,11 +10,10 @@ tokenizer (default: gpt2 as *observer*, gpt2-medium as *performer*):
 * **Binoculars score** (Hans et al., ICML 2024) - perplexity divided by the
   *cross*-perplexity between the two models. The cross-perplexity measures how
   surprising the text is *expected* to be given the prompt-like context, which
-  normalises away the "simple topic / common phrasing" confound. In the paper this
-  is state-of-the-art among zero-shot detectors. Lower score => more likely AI.
+  normalises away the "simple topic / common phrasing" confound. Lower score => more likely AI.
 
-Everything is lazily loaded so the API starts instantly and the first request pays
-the model download/load cost.
+Both models are English-only: callers must not interpret scores for other languages.
+Everything is lazily loaded so the API starts instantly.
 """
 from __future__ import annotations
 
@@ -32,13 +31,14 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class TokenStats:
-    offsets: list[tuple[int, int]]          # char span of each scored token
+    offsets: list[tuple[int, int]]          # char span of each *scored* token
     logprob: np.ndarray                     # observer log p(token)       (nats)
     xent: np.ndarray                        # cross-entropy observer||performer per token
     perf_logprob: np.ndarray                # performer log p(token)
     binoculars: float | None = None
     log_ppl: float = 0.0                    # observer mean NLL
-    chunks: int = 1
+    chunks: int = 1                         # sections actually scored
+    chunks_total: int = 1                   # sections in the document
     model_info: dict = field(default_factory=dict)
 
     @property
@@ -49,6 +49,7 @@ class TokenStats:
 class LMScorer:
     def __init__(self) -> None:
         self._lock = threading.Lock()
+        self._score_lock = threading.Lock()   # one scoring pass at a time keeps a small machine responsive
         self._loaded = False
         self.tok = None
         self.observer = None
@@ -63,6 +64,10 @@ class LMScorer:
         with self._lock:
             if self._loaded:
                 return self.error is None
+            if config.OFFLINE_LM:
+                self.error = "language models disabled (BURSTAI_OFFLINE_LM=1)"
+                self._loaded = True
+                return False
             try:
                 import torch
                 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -75,21 +80,22 @@ class LMScorer:
                     self.performer = (
                         AutoModelForCausalLM.from_pretrained(config.PERFORMER_MODEL, dtype=dtype).to(self.device).eval()
                     )
-                log.info("LM scorer ready on %s (%s / %s)", self.device, config.OBSERVER_MODEL, config.PERFORMER_MODEL if self.performer else "-")
+                log.info("LM scorer ready on %s", self.device)
             except Exception as e:  # noqa: BLE001
-                self.error = f"{type(e).__name__}: {e}"
+                self.error = f"{type(e).__name__}: {str(e)[:200]}"
                 log.exception("failed to load language models")
             finally:
                 self._loaded = True
         return self.error is None
 
     def info(self) -> dict:
+        name = lambda p: str(p).replace("\\", "/").rstrip("/").split("/")[-1]  # noqa: E731 - never expose local paths
         return {
             "loaded": self._loaded and self.error is None,
             "error": self.error,
             "device": self.device,
-            "observer": config.OBSERVER_MODEL,
-            "performer": config.PERFORMER_MODEL if config.USE_BINOCULARS else None,
+            "observer": name(config.OBSERVER_MODEL),
+            "performer": name(config.PERFORMER_MODEL) if config.USE_BINOCULARS else None,
         }
 
     # ------------------------------------------------------------------ scoring
@@ -107,37 +113,44 @@ class LMScorer:
         max_len = config.MAX_LM_TOKENS - 1  # room for the BOS token we prepend
         bos = self.tok.bos_token_id if self.tok.bos_token_id is not None else self.tok.eos_token_id
 
-        lp_all, xe_all, plp_all = [], [], []
-        chunks = 0
-        for start in range(0, len(ids), max_len):
-            piece = ids[start : start + max_len]
-            # Give later chunks some context so the first tokens aren't unfairly surprising.
-            ctx = ids[max(0, start - 64) : start] if start else []
-            inp = torch.tensor([[bos, *ctx, *piece]], device=self.device)
-            with torch.inference_mode():
-                o_logits = self.observer(inp).logits[0, :-1].float()
-                targets = inp[0, 1:]
-                o_logp = torch.log_softmax(o_logits, dim=-1)
-                lp = o_logp.gather(1, targets[:, None])[:, 0]
-                if self.performer is not None:
-                    p_logits = self.performer(inp).logits[0, :-1].float()
-                    p_logp = torch.log_softmax(p_logits, dim=-1)
-                    plp = p_logp.gather(1, targets[:, None])[:, 0]
-                    # X-entropy: expectation under observer of performer's NLL (Binoculars eq. 3)
-                    xe = -(torch.softmax(o_logits, dim=-1) * p_logp).sum(-1)
-                else:
-                    plp = lp
-                    xe = torch.full_like(lp, float("nan"))
-            n_ctx = len(ctx)
-            lp_all.append(lp[n_ctx:].cpu().numpy())
-            xe_all.append(xe[n_ctx:].cpu().numpy())
-            plp_all.append(plp[n_ctx:].cpu().numpy())
-            chunks += 1
+        starts = list(range(0, len(ids), max_len))
+        total = len(starts)
+        if total > config.MAX_LM_CHUNKS:
+            # Long document: score evenly spaced sections so the request finishes in bounded time.
+            step = (total - 1) / (config.MAX_LM_CHUNKS - 1)
+            starts = [starts[round(i * step)] for i in range(config.MAX_LM_CHUNKS)]
+
+        lp_all, xe_all, plp_all, off_all = [], [], [], []
+        with self._score_lock:
+            for start in starts:
+                piece = ids[start : start + max_len]
+                # Give later chunks some context so the first tokens aren't unfairly surprising.
+                ctx = ids[max(0, start - 64) : start] if start else []
+                inp = torch.tensor([[bos, *ctx, *piece]], device=self.device)
+                with torch.inference_mode():
+                    o_logits = self.observer(inp).logits[0, :-1].float()
+                    targets = inp[0, 1:]
+                    o_logp = torch.log_softmax(o_logits, dim=-1)
+                    lp = o_logp.gather(1, targets[:, None])[:, 0]
+                    if self.performer is not None:
+                        p_logits = self.performer(inp).logits[0, :-1].float()
+                        p_logp = torch.log_softmax(p_logits, dim=-1)
+                        plp = p_logp.gather(1, targets[:, None])[:, 0]
+                        # X-entropy: expectation under observer of performer's NLL (Binoculars eq. 3)
+                        xe = -(torch.softmax(o_logits, dim=-1) * p_logp).sum(-1)
+                    else:
+                        plp = lp
+                        xe = torch.full_like(lp, float("nan"))
+                n_ctx = len(ctx)
+                lp_all.append(lp[n_ctx:].cpu().numpy())
+                xe_all.append(xe[n_ctx:].cpu().numpy())
+                plp_all.append(plp[n_ctx:].cpu().numpy())
+                off_all.extend(offs[start : start + len(piece)])
 
         lp_arr = np.concatenate(lp_all)
         xe_arr = np.concatenate(xe_all)
         plp_arr = np.concatenate(plp_all)
-        stats = TokenStats(offsets=offs, logprob=lp_arr, xent=xe_arr, perf_logprob=plp_arr, chunks=chunks)
+        stats = TokenStats(offsets=off_all, logprob=lp_arr, xent=xe_arr, perf_logprob=plp_arr, chunks=len(starts), chunks_total=total)
         stats.log_ppl = float(-lp_arr.mean())
         if self.performer is not None:
             # paper: log-PPL of performer / X-PPL(observer, performer)

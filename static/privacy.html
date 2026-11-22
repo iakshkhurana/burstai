@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy notice | BurstAI</title>
+<meta name="description" content="Exactly what happens to the text you scan with BurstAI: what is sent where, what is stored, and how to delete it.">
+<link rel="canonical" href="__BASE__/privacy">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/css/fonts.css">
+<link rel="stylesheet" href="/static/css/burst.css">
+<link rel="stylesheet" href="/static/css/mobile.css">
+</head>
+<body class="legal">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <a href="/" class="logo" aria-label="BurstAI home">
+    <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 1l3.2 9.1L28 6l-4.1 8.8L31 16l-7.1 1.2L28 26l-8.8-4.1L16 31l-3.2-9.1L4 26l4.1-8.8L1 16l7.1-1.2L4 6l8.8 4.1z" fill="#C6F432" stroke="#0E1B3D" stroke-width="1.4" stroke-linejoin="round"/></svg>
+    <span class="word">burstai</span>
+  </a>
+  <div class="right"><a href="/terms" class="btn">Terms</a><a href="/" class="btn btn-lime">Start a scan</a></div>
+</header>
+
+<main class="legal-main" id="main">
+  <div class="eyebrow">PRIVACY NOTICE</div>
+  <h1>What happens to your text</h1>
+  <p class="updated">Last updated 22 November 2026</p>
+
+  <section class="legal-box">
+    <h2>The short version</h2>
+    <ul>
+      <li><b>Your essay is not stored.</b> It is processed in memory for the scan and then discarded.</li>
+      <li><b>Checking it requires sending parts of it to other services</b> (listed below). There is no way to search the web for copied text without doing that.</li>
+      <li><b>Accounts are optional</b> and hold your email, a password hash and the scores of scans you save. Never the essay.</li>
+      <li><b>No ads, no trackers, no analytics cookies.</b> Your data is not sold or used to train anything.</li>
+      <li>You can clear this device or delete your account at any time from <a href="/me">My writing</a>.</li>
+    </ul>
+  </section>
+
+  <h2>1. Where your text goes during a scan</h2>
+  <p>Your browser sends the text over HTTPS to this site, which passes it to the BurstAI checking engine. The engine keeps it in memory only for the duration of the scan and does not write it to disk or to logs. To do the checks, the engine contacts these third parties:</p>
+  <div class="tablewrap">
+    <table class="legal-table">
+      <thead><tr><th scope="col">Service</th><th scope="col">What it receives</th><th scope="col">Why</th></tr></thead>
+      <tbody>
+        <tr><td>Web search engines (DuckDuckGo and others, via an open-source metasearch library)</td><td>Up to about 20 short phrases (8 to 12 words each) taken from your text</td><td>To find pages that contain the same wording</td></tr>
+        <tr><td>Wikipedia, Europe PMC, Crossref</td><td>A handful of keywords from those phrases</td><td>To find encyclopedia articles and paper abstracts on the same topic</td></tr>
+        <tr><td>LanguageTool (public grammar service)</td><td>The text itself, up to the first 20,000 characters</td><td>Spelling and grammar suggestions. Their own privacy policy applies.</td></tr>
+        <tr><td>Google Gemini</td><td>The text, up to the first 12,000 characters. <b>Only if you add your own Gemini key.</b></td><td>Context-aware review of grammar suggestions and a second opinion on AI likelihood. Google's terms for your key apply; on Google's free tier, submitted content may be used to improve Google's products.</td></tr>
+        <tr><td>Websites found by the search</td><td>Nothing from you. The engine downloads those public pages to compare them with your text.</td><td>Sentence-by-sentence matching</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>If you do not want your text sent to any of these, do not scan it here. BurstAI is open source, so you can also run it on your own computer, where the language models work offline and you control which services are contacted.</p>
+
+  <h2>2. What is stored, and where</h2>
+  <h3>In your browser</h3>
+  <ul>
+    <li>The text and result of your latest scan, until you close the tab (session storage).</li>
+    <li>The titles and scores of your recent scans (local storage), so the home page and My writing can show your history.</li>
+    <li>Your Gemini key, if you add one (local storage). It is sent with your scans and is never stored on our side.</li>
+  </ul>
+  <p>Use <a href="/me">My writing → Clear history on this device</a> to remove all of it. Do this on shared computers.</p>
+  <h3>If you create an account</h3>
+  <ul>
+    <li>Your email address, display name, and a salted PBKDF2 hash of your password (the password itself is never stored).</li>
+    <li>For each saved scan: title, date, word count, scores, the list of matched source links, and per-sentence flags <b>without the sentence text</b>.</li>
+    <li>Documents you upload to your private document bank, in full, until you remove them. They are compared only against your own scans and are visible only to you.</li>
+  </ul>
+  <h3>Signed reports</h3>
+  <p>When you choose "Create signed copy", the scores, source links, a title, the date and a one-way fingerprint (SHA-256 hash) of the text are saved so that anyone with the link can verify them. The fingerprint cannot be turned back into the text. Signed copies contain no essay text; to have one removed, contact us with its report ID.</p>
+  <h3>Operational data</h3>
+  <ul>
+    <li>To prevent abuse we count requests per visitor using a salted hash of the IP address, kept for at most one hour.</li>
+    <li>The engine caches search results and downloaded public web pages for up to seven days to stay fast. The cache is keyed by a hash and holds no essay text.</li>
+    <li>The site is served through Cloudflare, which processes IP addresses and standard request metadata to deliver and protect it.</li>
+  </ul>
+
+  <h2>3. Cookies</h2>
+  <p>One strictly necessary cookie, <code>burstai_session</code>, is set when you log in so you stay signed in. It is HttpOnly and expires after 30 days or when you log out. There are no advertising, analytics or third-party cookies, and fonts are served from this site rather than a font network.</p>
+
+  <h2>4. Your choices</h2>
+  <ul>
+    <li><b>Delete your account</b> and everything stored for it: <a href="/me">My writing → Delete my account</a>. It takes effect immediately.</li>
+    <li><b>Clear this device:</b> <a href="/me">My writing → Clear history on this device</a>.</li>
+    <li><b>Use it without an account.</b> Everything works logged out.</li>
+    <li><b>Leave out Gemini.</b> If you never add a key, nothing is sent to Google.</li>
+  </ul>
+
+  <h2>5. Students and schools</h2>
+  <p>If you are a minor, use BurstAI with the permission of a parent, guardian or teacher. If you check someone else's writing, make sure you are allowed to, and read <a href="/terms">how to use results responsibly</a>.</p>
+
+  <h2>6. Who runs this and how to reach us</h2>
+  <p>BurstAI is an open-source project operated by its maintainer. For privacy questions, removal requests or to report a security problem, open an issue or use the contact details at <a href="https://github.com/iakshkhurana/burstai" target="_blank" rel="noopener">github.com/iakshkhurana/burstai</a>. Please do not post personal data or essay text in a public issue.</p>
+
+  <h2>7. Changes</h2>
+  <p>If what we do with data changes, this page changes first and the date at the top is updated.</p>
+</main>
+
+<footer class="legal-foot"><a href="/">Home</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="https://github.com/iakshkhurana/burstai" target="_blank" rel="noopener">Source code</a></footer>
+</body>
+</html>

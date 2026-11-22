@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terms and responsible use | BurstAI</title>
+<meta name="description" content="How to use BurstAI's plagiarism and AI-detection results fairly: what the scores mean, what they cannot prove, and the rules for using the service.">
+<link rel="canonical" href="__BASE__/terms">
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/css/fonts.css">
+<link rel="stylesheet" href="/static/css/burst.css">
+<link rel="stylesheet" href="/static/css/mobile.css">
+</head>
+<body class="legal">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <a href="/" class="logo" aria-label="BurstAI home">
+    <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 1l3.2 9.1L28 6l-4.1 8.8L31 16l-7.1 1.2L28 26l-8.8-4.1L16 31l-3.2-9.1L4 26l4.1-8.8L1 16l7.1-1.2L4 6l8.8 4.1z" fill="#C6F432" stroke="#0E1B3D" stroke-width="1.4" stroke-linejoin="round"/></svg>
+    <span class="word">burstai</span>
+  </a>
+  <div class="right"><a href="/privacy" class="btn">Privacy</a><a href="/" class="btn btn-lime">Start a scan</a></div>
+</header>
+
+<main class="legal-main" id="main">
+  <div class="eyebrow">TERMS &amp; RESPONSIBLE USE</div>
+  <h1>Using BurstAI fairly</h1>
+  <p class="updated">Last updated 22 November 2026</p>
+
+  <section class="legal-box">
+    <h2>The one rule that matters most</h2>
+    <p><b>A BurstAI score is evidence to look into, never a verdict about a person.</b> Do not penalise, accuse or fail anyone on the basis of a number from this or any other detector alone.</p>
+  </section>
+
+  <h2>1. What the results mean</h2>
+  <h3>Similarity</h3>
+  <ul>
+    <li>It is the share of counted words that match a source the search could reach: public web pages, Wikipedia, open academic abstracts and your own private document bank.</li>
+    <li><b>A match is not automatically plagiarism.</b> Properly quoted and cited material, common phrases, titles and the author's own earlier work all match.</li>
+    <li><b>A low score is not proof of originality.</b> BurstAI cannot see paywalled pages, books, or private archives of student papers, and free search engines sometimes return nothing. The report tells you how many pages were actually compared.</li>
+  </ul>
+  <h3>AI-writing likelihood</h3>
+  <ul>
+    <li>It is a statistical estimate of how predictable the text is to two small open language models, combined with writing-style signals. It is not a detector of any specific product.</li>
+    <li>It works for <b>English only</b>. For other languages no score is shown.</li>
+    <li>It is less reliable on short texts, formulaic genres (lab reports, legal or technical writing) and <b>can unfairly flag people writing in a second language</b>, whose prose tends to be more predictable.</li>
+    <li>It can be wrong in both directions. Text edited after generation, or deliberately disguised, can pass; honest writing can be flagged.</li>
+    <li>The thresholds were calibrated on a small set of samples. Treat the confidence label seriously, and treat "Mixed / uncertain" as exactly that.</li>
+  </ul>
+  <h3>Grammar</h3>
+  <p>Suggestions come from a rule-based checker (and from Gemini if you add your own key). Review each one; names, technical terms and deliberate style choices are sometimes flagged.</p>
+  <h3>Signed reports</h3>
+  <p>A signed report proves that the BurstAI engine produced those scores for a text with a particular fingerprint at a particular time, and that nobody altered them afterwards. It does <b>not</b> prove who wrote the text, and it is not a certificate that the work is original.</p>
+
+  <h2>2. If you are assessing someone else's work</h2>
+  <ul>
+    <li>Read the matched sources and the flagged sentences yourself before drawing any conclusion.</li>
+    <li>Talk to the writer and give them a real chance to explain: drafts, notes and version history are far better evidence than any score.</li>
+    <li>Follow your institution's academic-integrity procedure. A detector result should never be the only basis for a finding.</li>
+    <li>Make sure you are permitted to submit the person's work to an online service, and tell them you have done so where your rules require it. See the <a href="/privacy">privacy notice</a> for where text is sent.</li>
+  </ul>
+
+  <h2>3. If you are checking your own work</h2>
+  <ul>
+    <li>Use the source links to add quotation marks and citations where they are missing, or to rewrite in your own words.</li>
+    <li>A clean report does not guarantee that another tool, or your teacher, will see it the same way.</li>
+    <li>Do not use BurstAI to disguise copied or machine-written text as your own. That defeats the purpose of the tool and of your course.</li>
+  </ul>
+
+  <h2>4. Rules for using the service</h2>
+  <ul>
+    <li>Only scan text you have the right to check, and only upload documents to your document bank that you are allowed to store.</li>
+    <li>Do not try to break, overload or scrape the service, or get around its limits. Fair-use limits (about 30 scans per hour per visitor, roughly 30,000 words per scan) keep it free for everyone.</li>
+    <li>Do not submit unlawful content or other people's sensitive personal data.</li>
+    <li>You are responsible for your account and password. There is currently no email-based password reset.</li>
+    <li>We may remove accounts or block access that abuses the service.</li>
+  </ul>
+
+  <h2>5. No warranty</h2>
+  <p>BurstAI is free, open-source software provided "as is", without warranty of any kind. It depends on free third-party services (search engines, a grammar service) that can be slow, rate-limited or unavailable, and the checking engine may be offline at times. To the extent the law allows, the maintainers are not liable for decisions made on the basis of its results or for loss arising from its use. Nothing here limits rights you have under the law that cannot be limited.</p>
+
+  <h2>6. Open source</h2>
+  <p>The code is released under the MIT licence at <a href="https://github.com/iakshkhurana/burstai" target="_blank" rel="noopener">github.com/iakshkhurana/burstai</a>. It builds on open components including GPT-2 and DistilGPT-2 (language models), MiniLM sentence embeddings, LanguageTool, and the Lexend and Bricolage Grotesque typefaces; their licences are listed in the repository.</p>
+
+  <h2>7. Changes and contact</h2>
+  <p>These terms may change as the project does; the date at the top shows the latest version. Questions and problem reports: open an issue at the repository above (please do not include personal data or essay text in public issues).</p>
+</main>
+
+<footer class="legal-foot"><a href="/">Home</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="https://github.com/iakshkhurana/burstai" target="_blank" rel="noopener">Source code</a></footer>
+</body>
+</html>

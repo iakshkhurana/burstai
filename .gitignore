@@ -8,3 +8,6 @@ wheels/
 install.log
 .pytest_cache/
 *.log
+dist/
+server*.log
+tunnel*.log
