@@ -13,7 +13,7 @@ const SESSION_TTL = 30 * 86400;
 const PBKDF2_ITER = 100000; // Workers cap PBKDF2 at 100k iterations; Python verifies using the stored count
 const NOINDEX = new Set(["/check", "/report", "/login", "/signup", "/me"]);
 const PAGES = { "/": "index.html", "/check": "check.html", "/report": "report.html", "/login": "auth.html", "/signup": "auth.html", "/me": "me.html" };
-const ENGINE_PATHS = ["/api/check", "/api/extract", "/api/corpus", "/api/health"];
+const ENGINE_PATHS = ["/api/check", "/api/extract", "/api/corpus", "/api/health", "/api/gemini"];
 
 export default {
   async fetch(request, env, ctx) {

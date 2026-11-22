@@ -22,6 +22,8 @@
     renderDoc();
     bindTabs();
     B.mountNav("scan");
+    const chipSlot = document.getElementById("gemini-slot"); if (chipSlot) chipSlot.appendChild(B.geminiChip());
+    document.addEventListener("burstai:gemini", () => { B.store.del("result"); B.toast(B.gemini.has() ? "Re-scanning with Gemini…" : "Re-scanning without Gemini…"); setTimeout(() => location.reload(), 600); });
 
     const cached = B.store.get("result");
     if (cached && cached.text === text) { onResult(cached); return; }
@@ -31,7 +33,7 @@
       if (h && !h.lm.loaded && !h.lm.error) $("s-sub").textContent = "Loading language models (first run can take a minute)…";
       const data = await B.api("/api/check", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, options: { exclude_quotes: true, exclude_references: true, exclude_citations: true } }),
+        body: JSON.stringify({ text, options: { exclude_quotes: true, exclude_references: true, exclude_citations: true, gemini_key: B.gemini.get() } }),
       });
       B.store.set("result", data);
       onResult(data);
@@ -213,6 +215,7 @@
         if (s.A.reasons?.length) panel.appendChild(h("p", "note", s.A.reasons.slice(0, 3).map(B.esc).join(" · ")));
       }
       panel.appendChild(h("p", "note", "AI scores are probabilities, not proof."));
+      if (!B.gemini.has()) panel.appendChild(nudge("Add your free Gemini key for a second opinion with reasons."));
       warns.forEach((w) => panel.appendChild(w));
     } else {
       panel.appendChild(h("h3", "", `${s.openIssues.length} suggestion${s.openIssues.length === 1 ? "" : "s"}`));
@@ -229,9 +232,16 @@
         card.appendChild(acts); panel.appendChild(card);
       });
       if (s.G && !s.openIssues.length) panel.appendChild(h("div", "clean", "All clean. Nice work."));
-      if (s.G) panel.appendChild(h("p", "note", s.G.reviewed_by ? `Suggestions reviewed in context by ${B.esc(s.G.reviewed_by)}.` : "Rule-based check (LanguageTool). Add a Gemini key on the engine for context-aware review."));
+      if (s.G) panel.appendChild(s.G.reviewed_by ? h("p", "note", `Suggestions reviewed in context by ${B.esc(s.G.reviewed_by)}.`) : nudge("Rule-based check. Add your free Gemini key and suggestions get reviewed in context."));
       warns.forEach((w) => panel.appendChild(w));
     }
+  }
+
+  function nudge(text) {
+    const d = document.createElement("div"); d.className = "gemini-nudge";
+    d.innerHTML = `<span>✦ ${B.esc(text)}</span>`;
+    const b = document.createElement("button"); b.type = "button"; b.textContent = "Add key"; b.addEventListener("click", () => B.geminiDialog()); d.appendChild(b);
+    return d;
   }
 
   function checkbox(label, checked, onChange) {

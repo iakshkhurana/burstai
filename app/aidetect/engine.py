@@ -59,14 +59,14 @@ def _sig(x: float, mid: float, scale: float, invert: bool = False) -> float:
     return 1 / (1 + math.exp(-z))
 
 
-async def detect_ai(text: str, *, use_llm_judge: bool = True, sentences: list[Sentence] | None = None) -> AIResult:
+async def detect_ai(text: str, *, use_llm_judge: bool = True, sentences: list[Sentence] | None = None, gemini_key: str | None = None) -> AIResult:
     t0 = time.perf_counter()
     warnings: list[str] = []
     sents = sentences if sentences is not None else split_sentences(text)
     body_sents = [s for s in sents if not s.is_reference]
 
     # Run LM scoring (CPU/GPU bound) and the Gemini judge (network) concurrently.
-    judge_task = asyncio.create_task(llm_judge.judge(text)) if use_llm_judge and llm_judge.available() else None
+    judge_task = asyncio.create_task(llm_judge.judge(text, gemini_key)) if use_llm_judge and llm_judge.available(gemini_key) else None
     stats = await asyncio.to_thread(SCORER.score, text)
     judge = await judge_task if judge_task else None
 

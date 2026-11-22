@@ -1,17 +1,11 @@
-"""Optional third opinion from Gemini's free tier.
+"""Optional third opinion from Gemini (user's own key or GEMINI_API_KEY).
 
-Only used when GEMINI_API_KEY is set. The judge returns a probability and short reasons; the
-ensemble gives it a bounded weight because LLM judges are confident but not reliably calibrated.
+The judge returns a probability and short reasons; the ensemble gives it a bounded weight because
+LLM judges are confident but not reliably calibrated.
 """
 from __future__ import annotations
 
-import json
-import logging
-import re
-
-from .. import config
-
-log = logging.getLogger(__name__)
+from .. import config, llm
 
 _PROMPT = """You are an expert forensic linguist. Decide whether the TEXT below was written by a
 large language model (ChatGPT, Gemini, Claude, Llama...) or by a human.
@@ -29,27 +23,18 @@ TEXT:
 \"\"\""""
 
 
-def available() -> bool:
-    return bool(config.GEMINI_API_KEY)
+def available(key: str | None = None) -> bool:
+    return llm.available(key)
 
 
-async def judge(text: str) -> dict | None:
-    if not available():
+async def judge(text: str, api_key: str | None = None) -> dict | None:
+    if not llm.available(api_key):
         return None
+    data = await llm.ask_json(_PROMPT % text[:12000], api_key=api_key)
+    if not isinstance(data, dict):
+        return {"error": "Gemini did not answer"}
     try:
-        from google import genai
-
-        client = genai.Client(api_key=config.GEMINI_API_KEY)
-        resp = await client.aio.models.generate_content(
-            model=config.GEMINI_MODEL,
-            contents=_PROMPT % text[:12000],
-            config={"temperature": 0.0, "response_mime_type": "application/json"},
-        )
-        raw = resp.text or ""
-        m = re.search(r"\{.*\}", raw, re.S)
-        data = json.loads(m.group(0) if m else raw)
         p = float(data.get("ai_probability", 50)) / 100
-        return {"probability": max(0.0, min(1.0, p)), "reasons": [str(r) for r in data.get("reasons", [])][:5], "model": config.GEMINI_MODEL}
-    except Exception as e:  # noqa: BLE001
-        log.warning("Gemini judge failed: %s", e)
-        return {"error": str(e)}
+    except (TypeError, ValueError):
+        p = 0.5
+    return {"probability": max(0.0, min(1.0, p)), "reasons": [str(r) for r in data.get("reasons", [])][:5], "model": config.GEMINI_MODEL}

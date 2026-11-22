@@ -184,5 +184,82 @@ window.B = (() => {
     document.body.classList.add("has-nav");
   }
 
-  return { SRC, esc, words, host, pct, fmtDate, api, store, titleOf, reportId, toast, summarize, aiWhy, cite, copy, matchDesc, srcKind, me, paintAuth, mountNav };
+  /* ---------------- Gemini key (user's own, kept in this browser only) ---------------- */
+  const gemini = {
+    get() { try { return localStorage.getItem("burstai.gemini_key") || ""; } catch { return ""; } },
+    set(k) { try { if (k) localStorage.setItem("burstai.gemini_key", k); else localStorage.removeItem("burstai.gemini_key"); } catch {} document.dispatchEvent(new Event("burstai:gemini")); },
+    has() { return !!gemini.get(); },
+  };
+  const DIALOG_CSS = `
+.gm-back{position:fixed;inset:0;background:rgba(14,27,61,.55);z-index:60;display:grid;place-items:center;padding:16px}
+.gm-box{background:#fff;border:2px solid #0E1B3D;border-radius:24px;box-shadow:8px 8px 0 #0E1B3D;width:min(520px,100%);padding:24px;font-family:Lexend,system-ui,sans-serif;color:#0E1B3D}
+.gm-box h2{font-family:"Bricolage Grotesque",Lexend,sans-serif;font-weight:800;font-size:26px;letter-spacing:-.03em;margin:0 0 6px;display:flex;align-items:center;gap:10px}
+.gm-box h2 span{width:36px;height:36px;border-radius:12px;background:#C6F432;border:2px solid #0E1B3D;display:grid;place-items:center;font-size:18px}
+.gm-box p{margin:0 0 14px;font-size:14px;color:#3D4966;line-height:1.55;font-weight:300}
+.gm-box ul{margin:0 0 14px;padding-left:18px;font-size:14px;color:#3D4966;line-height:1.6}
+.gm-box label{display:grid;gap:6px;font-size:14px;font-weight:500}
+.gm-row{display:flex;gap:8px}
+.gm-box input{flex:1;font:300 15px Lexend,sans-serif;color:#0E1B3D;border:2px solid #0E1B3D;border-radius:12px;padding:11px 14px;min-height:46px;min-width:0}
+.gm-eye{border:2px solid #0E1B3D;background:#fff;border-radius:12px;min-width:46px;cursor:pointer;font:500 13px Lexend}
+.gm-status{min-height:22px;font-size:13px;margin:10px 0 4px}
+.gm-status.ok{color:#2b8a3e}.gm-status.err{color:#B4231F}
+.gm-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.gm-btn{font:600 14px Lexend;border:2px solid #0E1B3D;border-radius:12px;padding:0 16px;min-height:44px;cursor:pointer;background:#fff;color:#0E1B3D}
+.gm-btn.p{background:#C6F432;box-shadow:4px 4px 0 #0E1B3D}.gm-btn.d{color:#B4231F;margin-left:auto}
+.gm-btn:disabled{opacity:.6;cursor:progress}
+.gm-small{font-size:12px;color:#55617E;margin-top:12px}
+.gm-box a{color:#2F4BEA}
+.gemini-chip{display:inline-flex;align-items:center;gap:8px;font:500 14px Lexend,sans-serif;color:#0E1B3D;background:#fff;border:2px solid #0E1B3D;border-radius:12px;padding:0 14px;min-height:44px;cursor:pointer}
+.gemini-chip.on{background:#E6FAD0}
+.gemini-chip .dot{width:10px;height:10px;border-radius:50%;background:#B8C2DE;border:2px solid #0E1B3D}
+.gemini-chip.on .dot{background:#C6F432}
+.gemini-nudge{display:flex;gap:12px;align-items:center;background:#E6FAD0;border:2px solid #0E1B3D;border-radius:16px;padding:12px 14px;font-size:14px;line-height:1.45}
+.gemini-nudge button{font:600 13px Lexend;border:2px solid #0E1B3D;border-radius:10px;padding:0 12px;min-height:40px;cursor:pointer;background:#C6F432;white-space:nowrap;box-shadow:3px 3px 0 #0E1B3D}
+`;
+  function geminiDialog(onDone) {
+    if (!document.getElementById("gm-style")) { const st = document.createElement("style"); st.id = "gm-style"; st.textContent = DIALOG_CSS; document.head.appendChild(st); }
+    document.querySelector(".gm-back")?.remove();
+    const back = document.createElement("div"); back.className = "gm-back"; back.setAttribute("role", "dialog"); back.setAttribute("aria-modal", "true"); back.setAttribute("aria-labelledby", "gm-title");
+    const has = gemini.has();
+    back.innerHTML = `<div class="gm-box">
+      <h2 id="gm-title"><span>✦</span>Add your Gemini key</h2>
+      <p>Give BurstAI a brain. With your own free Gemini key, grammar suggestions are checked in context (no more "pgvector → pg vector") and the AI detector gets a second opinion with reasons.</p>
+      <ul><li>Free at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> → Create API key</li><li>Stays in <b>this browser only</b>. BurstAI never stores it.</li></ul>
+      <label>Gemini API key<div class="gm-row"><input id="gm-key" type="password" autocomplete="off" spellcheck="false" placeholder="AIza…" value="${esc(gemini.get())}"><button type="button" class="gm-eye" id="gm-eye" aria-label="Show key">Show</button></div></label>
+      <div class="gm-status" id="gm-status" aria-live="polite">${has ? "A key is saved on this device." : ""}</div>
+      <div class="gm-acts"><button type="button" class="gm-btn p" id="gm-save">Validate &amp; save</button><button type="button" class="gm-btn" id="gm-cancel">Cancel</button>${has ? '<button type="button" class="gm-btn d" id="gm-remove">Remove key</button>' : ""}</div>
+      <div class="gm-small">Without a key everything still works with the rule-based checks.</div>
+    </div>`;
+    document.body.appendChild(back);
+    const $ = (id) => back.querySelector("#" + id);
+    const close = () => { back.remove(); document.removeEventListener("keydown", onKey); };
+    const onKey = (e) => { if (e.key === "Escape") close(); };
+    document.addEventListener("keydown", onKey);
+    back.addEventListener("click", (e) => { if (e.target === back) close(); });
+    $("gm-cancel").addEventListener("click", close);
+    $("gm-eye").addEventListener("click", () => { const i = $("gm-key"); i.type = i.type === "password" ? "text" : "password"; $("gm-eye").textContent = i.type === "password" ? "Show" : "Hide"; });
+    $("gm-remove")?.addEventListener("click", () => { gemini.set(""); toast("Gemini key removed"); close(); onDone && onDone(false); });
+    $("gm-save").addEventListener("click", async () => {
+      const key = $("gm-key").value.trim(); const st = $("gm-status");
+      if (key.length < 20) { st.className = "gm-status err"; st.textContent = "That doesn't look like a Gemini key."; return; }
+      $("gm-save").disabled = true; st.className = "gm-status"; st.textContent = "Checking the key with Gemini…";
+      try {
+        const r = await api("/api/gemini/validate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key }) });
+        if (r.ok) { gemini.set(key); st.className = "gm-status ok"; st.textContent = `Works (${r.model}). Saved on this device.`; toast("Gemini connected ✦"); setTimeout(close, 700); onDone && onDone(true); }
+        else { st.className = "gm-status err"; st.textContent = r.error || "Key rejected."; }
+      } catch (e) { st.className = "gm-status err"; st.textContent = "Could not reach the engine: " + e.message; }
+      $("gm-save").disabled = false;
+    });
+    setTimeout(() => $("gm-key").focus(), 50);
+  }
+  /** A small status chip: "Gemini: on/off", opens the dialog. */
+  function geminiChip() {
+    const b = document.createElement("button"); b.type = "button"; b.className = "gemini-chip";
+    const paint = () => { const on = gemini.has(); b.classList.toggle("on", on); b.innerHTML = `<span class="dot"></span>${on ? "Gemini on" : "Add Gemini key"}`; b.title = on ? "Your Gemini key is active (click to change)" : "Add your free Gemini key for smarter grammar and AI detection"; };
+    paint(); document.addEventListener("burstai:gemini", paint);
+    b.addEventListener("click", () => geminiDialog());
+    return b;
+  }
+
+  return { SRC, esc, words, host, pct, fmtDate, api, store, titleOf, reportId, toast, summarize, aiWhy, cite, copy, matchDesc, srcKind, me, paintAuth, mountNav, gemini, geminiDialog, geminiChip };
 })();

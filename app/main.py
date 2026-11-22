@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import __version__, auth, config
+from . import __version__, auth, config, llm
 from .aidetect import engine as ai_engine
 from .aidetect import llm_judge
 from .aidetect.lm import SCORER
@@ -54,7 +54,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 @app.middleware("http")
 async def engine_token_guard(request: Request, call_next):
     """Optional shared-secret lock for the engine endpoints when they are exposed to a Worker proxy."""
-    if config.ENGINE_TOKEN and request.url.path.startswith(("/api/check", "/api/extract", "/api/corpus")):
+    if config.ENGINE_TOKEN and request.url.path.startswith(("/api/check", "/api/extract", "/api/corpus", "/api/gemini")):
         if request.headers.get("x-engine-token") != config.ENGINE_TOKEN:
             return Response('{"detail":"engine token required"}', status_code=401, media_type="application/json")
     return await call_next(request)
@@ -72,6 +72,7 @@ class CheckOptions(BaseModel):
     deep_search: bool = False
     llm_judge: bool = True
     language: str = "auto"
+    gemini_key: str = ""  # user's own key from the browser; never stored
 
 
 class CheckRequest(BaseModel):
@@ -93,7 +94,7 @@ async def health():
         "embedder": embedder_ready(),
         "cuda": cuda,
         "gemini": llm_judge.available(),
-        "gemini_model": config.GEMINI_MODEL if llm_judge.available() else None,
+        "gemini_model": config.GEMINI_MODEL,
         "corpus_docs": len(corpus.list_docs()),
     }
 
@@ -121,9 +122,9 @@ async def check(req: CheckRequest):
             sentences=sents,
         )
     if o.ai:
-        tasks["ai"] = ai_engine.detect_ai(text, use_llm_judge=o.llm_judge, sentences=sents)
+        tasks["ai"] = ai_engine.detect_ai(text, use_llm_judge=o.llm_judge, sentences=sents, gemini_key=gemini_key)
     if o.grammar:
-        tasks["grammar"] = check_grammar(text, o.language)
+        tasks["grammar"] = check_grammar(text, o.language, gemini_key)
 
     results = await asyncio.gather(*tasks.values(), return_exceptions=True)
     out: dict = {
@@ -145,6 +146,16 @@ async def check(req: CheckRequest):
         else:
             out[key] = res
     return out
+
+
+class GeminiKey(BaseModel):
+    key: str
+
+
+@app.post("/api/gemini/validate")
+async def gemini_validate(body: GeminiKey):
+    """Round-trip the user's key once so the UI can confirm it works. The key is not stored."""
+    return await llm.validate(body.key)
 
 
 @app.post("/api/extract")

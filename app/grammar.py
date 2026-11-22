@@ -16,7 +16,7 @@ from . import config, llm
 log = logging.getLogger(__name__)
 
 
-async def check_grammar(text: str, language: str = "auto") -> dict:
+async def check_grammar(text: str, language: str = "auto", gemini_key: str | None = None) -> dict:
     truncated = False
     if len(text) > config.LANGUAGETOOL_MAX_CHARS:
         text = text[: config.LANGUAGETOOL_MAX_CHARS]
@@ -64,8 +64,8 @@ async def check_grammar(text: str, language: str = "auto") -> dict:
         )
     lang = (data.get("language") or {}).get("detectedLanguage", {}).get("name") or (data.get("language") or {}).get("name")
     reviewed = False
-    if llm.available():
-        refined = await _refine_with_gemini(text, issues)
+    if llm.available(gemini_key):
+        refined = await _refine_with_gemini(text, issues, gemini_key)
         if refined is not None:
             issues = refined
             counts = {}
@@ -100,14 +100,14 @@ TEXT:
 \"\"\""""
 
 
-async def _refine_with_gemini(text: str, issues: list[dict]) -> list[dict] | None:
+async def _refine_with_gemini(text: str, issues: list[dict], gemini_key: str | None = None) -> list[dict] | None:
     """Ask Gemini to validate LanguageTool's proposals and add misses. Returns None on failure."""
     snippet = text[:12000]
     proposals = [
         {"original": text[i["offset"] : i["offset"] + i["length"]], "replacement": (i["replacements"] or [""])[0], "message": i["message"][:120]}
         for i in issues[:40]
     ]
-    data = await llm.ask_json(_REVIEW_PROMPT % (json.dumps(proposals, ensure_ascii=False), snippet))
+    data = await llm.ask_json(_REVIEW_PROMPT % (json.dumps(proposals, ensure_ascii=False), snippet), api_key=gemini_key)
     if not isinstance(data, list):
         return None
     out: list[dict] = []
