@@ -229,6 +229,7 @@
         card.appendChild(acts); panel.appendChild(card);
       });
       if (s.G && !s.openIssues.length) panel.appendChild(h("div", "clean", "All clean. Nice work."));
+      if (s.G) panel.appendChild(h("p", "note", s.G.reviewed_by ? `Suggestions reviewed in context by ${B.esc(s.G.reviewed_by)}.` : "Rule-based check (LanguageTool). Add a Gemini key on the engine for context-aware review."));
       warns.forEach((w) => panel.appendChild(w));
     }
   }

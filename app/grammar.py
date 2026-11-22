@@ -6,11 +6,12 @@ use run LanguageTool locally (docker: erikvl87/languagetool) and set LANGUAGETOO
 from __future__ import annotations
 
 import logging
+import json
 import re
 
 import httpx
 
-from . import config
+from . import config, llm
 
 log = logging.getLogger(__name__)
 
@@ -62,7 +63,91 @@ async def check_grammar(text: str, language: str = "auto") -> dict:
             }
         )
     lang = (data.get("language") or {}).get("detectedLanguage", {}).get("name") or (data.get("language") or {}).get("name")
-    return {"available": True, "language": lang, "issues": issues, "counts": counts, "truncated": truncated}
+    reviewed = False
+    if llm.available():
+        refined = await _refine_with_gemini(text, issues)
+        if refined is not None:
+            issues = refined
+            counts = {}
+            for it in issues:
+                counts[it["kind"]] = counts.get(it["kind"], 0) + 1
+            reviewed = True
+    return {"available": True, "language": lang, "issues": issues, "counts": counts, "truncated": truncated, "reviewed_by": config.GEMINI_MODEL if reviewed else None}
+
+
+_REVIEW_PROMPT = """You are a careful copy editor reviewing an automated grammar checker's output for the TEXT below.
+
+The automated checker proposed these issues (JSON):
+%s
+
+Your job:
+1. KEEP only proposals that are genuine errors a good editor would fix in this context. DROP proposals about
+   product names, technical terms, code identifiers, acronyms, proper nouns, British/American spelling variants,
+   intentional formatting, headings in ALL CAPS, or anything that is actually fine.
+2. ADD real errors the checker missed: wrong word (effects/affects, their/there/they're, its/it's), subject-verb
+   agreement, tense, missing/extra words, obvious typos, wrong prepositions. Do NOT rewrite style or tone.
+3. For every issue give the EXACT original substring as it appears in the text (copy it verbatim, keep its
+   capitalisation and punctuation, 1-6 words), the replacement, a short reason, and a kind from:
+   spelling | grammar | punctuation | word-choice | style.
+
+Return ONLY a JSON array, at most 40 items, like:
+[{"original": "their is", "replacement": "there is", "reason": "'There' introduces existence; 'their' is possessive.", "kind": "grammar"}]
+Return [] if nothing needs fixing.
+
+TEXT:
+\"\"\"
+%s
+\"\"\""""
+
+
+async def _refine_with_gemini(text: str, issues: list[dict]) -> list[dict] | None:
+    """Ask Gemini to validate LanguageTool's proposals and add misses. Returns None on failure."""
+    snippet = text[:12000]
+    proposals = [
+        {"original": text[i["offset"] : i["offset"] + i["length"]], "replacement": (i["replacements"] or [""])[0], "message": i["message"][:120]}
+        for i in issues[:40]
+    ]
+    data = await llm.ask_json(_REVIEW_PROMPT % (json.dumps(proposals, ensure_ascii=False), snippet))
+    if not isinstance(data, list):
+        return None
+    out: list[dict] = []
+    cursor = 0
+    used: set[tuple[int, int]] = set()
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        orig = str(item.get("original") or "").strip()
+        rep = str(item.get("replacement") or "").strip()
+        if not orig or orig == rep or len(orig) > 120:
+            continue
+        # locate the original: prefer the first occurrence after the previous match, else anywhere
+        pos = text.find(orig, cursor)
+        if pos < 0:
+            pos = text.find(orig)
+        if pos < 0:
+            continue
+        span = (pos, pos + len(orig))
+        if span in used:
+            continue
+        used.add(span)
+        cursor = pos + len(orig)
+        kind = str(item.get("kind") or "grammar").lower()
+        if kind not in {"spelling", "grammar", "punctuation", "word-choice", "style"}:
+            kind = "grammar"
+        out.append(
+            {
+                "offset": pos,
+                "length": len(orig),
+                "message": str(item.get("reason") or "Suggested correction")[:300],
+                "short": kind.replace("-", " ").title(),
+                "kind": kind,
+                "replacements": [rep] if rep else [],
+                "rule": "GEMINI_REVIEW",
+                "context": "",
+            }
+        )
+    out.sort(key=lambda i: i["offset"])
+    return out
 
 
 _VARIANT_HINT = re.compile(r"\b(British|American|Canadian|Australian) English\b", re.I)
@@ -85,6 +170,13 @@ def _noise(m: dict, kind: str, flagged: str) -> bool:
         return False
     word = flagged.strip()
     if not word or _TECHY.search(word):
+        return True
+    reps0 = [r["value"] for r in m.get("replacements", [])[:3]]
+    # "pgvector -> pg vector", "datasets -> data sets": same letters, only spacing/hyphens differ -> product/tech term
+    if any(re.sub(r"[\s-]", "", r).lower() == re.sub(r"[\s-]", "", word).lower() for r in reps0):
+        return True
+    # lowercase single token with no vowels or with internal digits/underscores is an identifier, not a typo
+    if re.fullmatch(r"[a-z0-9_]{3,}", word) and (not re.search(r"[aeiou]", word) or "_" in word):
         return True
     if _VARIANT_HINT.search(m.get("message", "")):
         return True
