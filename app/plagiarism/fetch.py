@@ -18,7 +18,8 @@ from .search import Candidate
 
 log = logging.getLogger(__name__)
 PAGE_TTL = 86400
-_UA = "Mozilla/5.0 (compatible; burstai/0.2; open-source plagiarism checker)"
+# An honest, contactable identity (required by Wikimedia's robot policy, good manners everywhere).
+_UA = "Mozilla/5.0 (compatible; BurstAI/0.2; +https://burstai.online; https://github.com/iakshkhurana/burstai)"
 
 
 async def _guard(request: httpx.Request) -> None:

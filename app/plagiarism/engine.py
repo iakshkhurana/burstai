@@ -96,8 +96,10 @@ async def check_plagiarism(
             if not texts:
                 warnings.append("Found search results but could not download any page text.")
         n_web = sum(1 for u in texts if origins.get(u) == "web")
-        if queries and n_web == 0:
-            warnings.append("The free web search engines did not answer this time, so ordinary web pages were NOT checked. This similarity score may be understated and is not evidence of originality - scan again in a few minutes.")
+        if queries and status.get("web_blocked") and n_web == 0:
+            warnings.append("Web search engines are refusing automated queries from this server right now, so ordinary web pages were NOT checked (Wikipedia and academic abstracts were). This similarity score may be understated and is not evidence of originality - scan again later.")
+        elif queries and n_web == 0 and status.get("timed_out"):
+            warnings.append("Web search did not finish in time, so ordinary web pages were NOT checked. This similarity score may be understated - scan again in a few minutes.")
         elif status.get("timed_out"):
             warnings.append("Some searches were still running when the time budget ended, so web coverage is partial.")
 
@@ -171,8 +173,11 @@ async def check_plagiarism(
         ann.append(entry)
 
     coverage = {k: sum(1 for u in texts if origins.get(u) == k) for k in ("web", "wikipedia", "academic", "corpus")}
-    coverage["web_searched"] = bool(use_web)
-    coverage["complete"] = bool(use_web) and coverage["web"] > 0 and not status.get("timed_out")
+    # web_searched: the engines accepted our queries (so "no web matches" is meaningful)
+    coverage["web_searched"] = bool(use_web) and not status.get("web_blocked") and not (status.get("timed_out") and coverage["web"] == 0)
+    coverage["web_blocked"] = bool(status.get("web_blocked"))
+    coverage["queries"] = len(queries)
+    coverage["complete"] = coverage["web_searched"] and not status.get("timed_out")
 
     denom = max(1, counted_words)
     for sr in per_source.values():

@@ -28,8 +28,12 @@ from ..textproc import Sentence, content_words, tokenize_words, word_tokens
 
 log = logging.getLogger(__name__)
 _pool = ThreadPoolExecutor(max_workers=3)  # gentle on the free search engines
-_UA = {"User-Agent": "burstai/0.2 (open-source plagiarism checker)"}
+# Wikimedia and Crossref ask automated clients to identify themselves with a contact URL.
+_UA = {"User-Agent": "BurstAI/0.2 (https://burstai.online; https://github.com/iakshkhurana/burstai) python-httpx"}
 SEARCH_TTL = 7 * 86400
+EMPTY_TTL = 86400          # "nothing found" is remembered for a day only
+HEALTH_TTL = 600           # re-test blocked search engines every 10 minutes
+_health = {"ok": None, "at": 0.0}
 # sponsored / tracking redirects that search front-ends mix into results
 _AD_URL = re.compile(r"bing\.com/aclick|duckduckgo\.com/y\.js|googleadservices\.|doubleclick\.net|/aclk\?|[?&]ad_domain=", re.I)
 
@@ -101,8 +105,29 @@ def _strip_tags(s: str) -> str:
 
 
 # ----------------------------------------------------------------------------- web search
+def web_search_available() -> bool:
+    """Canary: free search front-ends answer a blocked client with "no results", which is
+    indistinguishable from an original sentence. So we ask for something that certainly exists;
+    if even that comes back empty, the engines are refusing us and web results cannot be trusted."""
+    now = time.monotonic()
+    if _health["ok"] is not None and now - _health["at"] < HEALTH_TTL:
+        return _health["ok"]
+    ok = False
+    try:
+        from ddgs import DDGS
+
+        with DDGS(timeout=8) as ddg:
+            ok = bool(ddg.text("wikipedia free encyclopedia", max_results=2, backend="auto"))
+    except Exception as e:  # noqa: BLE001
+        log.warning("web search canary failed (%s): search engines are not answering this server", type(e).__name__)
+    _health.update(ok=ok, at=now)
+    return ok
+
+
 def _ddg_search(query: str, n: int) -> list[Candidate]:
     cached = cache.get("search", _k(query), SEARCH_TTL)
+    if cached is None and cache.get("search0", _k(query), EMPTY_TTL) is not None:
+        cached = []
     if cached is not None:
         return [Candidate(url=r["url"], title=r["title"], snippet=r["snippet"], queries=[query]) for r in cached]
 
@@ -128,8 +153,10 @@ def _ddg_search(query: str, n: int) -> list[Candidate]:
         url = r.get("href") or r.get("url") or ""
         if url.startswith("http") and not _AD_URL.search(url):
             out.append(Candidate(url=url, title=r.get("title", ""), snippet=r.get("body", ""), queries=[query]))
-    if out or definitive:
+    if out:
         cache.put("search", _k(query), [{"url": c.url, "title": c.title, "snippet": c.snippet} for c in out])
+    elif definitive and web_search_available():
+        cache.put("search0", _k(query), [])  # a genuine "nothing found"; never cache a block as a miss
     return out
 
 
@@ -238,12 +265,22 @@ async def find_candidates(sentences: list[Sentence], deep: bool = False) -> tupl
 
     loop = asyncio.get_running_loop()
     per_q = config.SEARCH_RESULTS_PER_QUERY
+    web_ok = await loop.run_in_executor(_pool, web_search_available)
+    status["web_blocked"] = not web_ok
     async with httpx.AsyncClient(follow_redirects=True) as client:
-        tasks: list[asyncio.Future] = [loop.run_in_executor(_pool, _ddg_search, q, per_q) for q in queries]
+        # when the engines refuse us, only replay cached answers instead of hammering them
+        tasks: list[asyncio.Future] = [loop.run_in_executor(_pool, _ddg_search, q, per_q) for q in queries] if web_ok else []
         side = queries[: max(3, len(queries) // 2)]
         tasks += [asyncio.ensure_future(_wiki_search(client, q)) for q in side]
         tasks += [asyncio.ensure_future(_europepmc(client, q)) for q in side[:4]]
         tasks += [asyncio.ensure_future(_crossref(client, q)) for q in side[:4]]
+        if not web_ok:  # still serve anything cached from earlier, healthy runs
+            for q in queries:
+                hit = cache.get("search", _k(q), SEARCH_TTL)
+                if hit:
+                    f = loop.create_future()
+                    f.set_result([Candidate(url=r["url"], title=r["title"], snippet=r["snippet"], queries=[q]) for r in hit])
+                    tasks.append(f)
         done, pending = await asyncio.wait(tasks, timeout=config.SEARCH_PHASE_TIMEOUT)
         for t in pending:
             t.cancel()

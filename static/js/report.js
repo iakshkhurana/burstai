@@ -122,7 +122,8 @@
     if (R.hasPlag && cov && typeof cov === "object") {
       const n = (k) => Math.max(0, Number(cov[k]) || 0);
       add(`Compared against ${n("web")} web page${n("web") === 1 ? "" : "s"}, ${n("wikipedia")} Wikipedia article${n("wikipedia") === 1 ? "" : "s"}, ${n("academic")} academic abstract${n("academic") === 1 ? "" : "s"}${n("corpus") ? ` and ${n("corpus")} private document${n("corpus") === 1 ? "" : "s"}` : ""}.`);
-      if (cov.web_searched && !n("web")) add("Important: the free web search engines did not answer during this scan, so ordinary web pages were NOT checked. The similarity score may be understated and is not evidence of originality. Scan again later.");
+      if (cov.web_searched === false) add("Important: web search engines did not accept queries during this scan, so ordinary web pages were NOT checked. The similarity score may be understated and is not evidence of originality. Scan again later.");
+      else if (!n("web") && n("queries")) add(`The web was searched for ${n("queries")} distinctive phrases from the text and no page containing them was found.`);
     }
     if (mode === "local" && R.edited) add("You edited the text after the scan (grammar fixes). The certificate covers the text as it was scanned; run a new scan to certify the edited version.");
   }

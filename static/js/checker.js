@@ -155,7 +155,7 @@
     let v = "–", f = 0, title = PANEL[tab].t, sub = "", label = title;
     if (tab === "plag") {
       if (s.similarity == null) { sub = "Plagiarism check did not run."; }
-      else if (s.P.coverage && s.P.coverage.web_searched && !s.P.coverage.web && !s.sources.length) { v = "?"; sub = "The web search did not answer this time, so web pages were not checked. Scan again in a few minutes."; label = "Similarity could not be checked against the web"; }
+      else if (s.P.coverage && s.P.coverage.web_searched === false && !s.sources.length) { v = "?"; sub = "Web search engines did not accept queries this time, so web pages were not checked. Scan again later."; label = "Similarity could not be checked against the web"; }
       else { v = B.pct(s.similarity); f = s.similarity / 100; sub = s.sources.length ? `${s.sources.length} source${s.sources.length === 1 ? "" : "s"} share wording. Tap one to isolate it in the text.` : `No matching sources found across ${s.P.candidates_checked} page${s.P.candidates_checked === 1 ? "" : "s"} checked.`; label = `Similarity ${Math.round(s.similarity)} percent`; }
     } else if (tab === "ai") {
       if (s.aiPct == null) { sub = s.aiVerdict || "AI detection did not produce a score."; }
