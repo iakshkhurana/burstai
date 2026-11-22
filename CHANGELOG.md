@@ -1,5 +1,66 @@
 # Changelog
 
+## 0.1.0 - 2026-11-22
+
+Production hardening: signed reports, privacy notice and terms, security headers and rate limits, per-owner document bank, honest coverage reporting, faster matcher, 28 tests.
+
+### Added
+- app/llm.py
+- app/security.py
+- scripts/fetch_fonts.py
+- scripts/start_engine.ps1
+- static/404.html
+- static/css/fonts.css
+- static/css/pages.css
+- static/fonts/bricolage-grotesque-latin-ext.woff2
+- static/fonts/bricolage-grotesque-latin.woff2
+- static/fonts/lexend-latin-ext.woff2
+- static/fonts/lexend-latin.woff2
+- static/js/auth.js
+- static/privacy.html
+- static/terms.html
+- tests/conftest.py
+- tests/test_api.py
+
+### Changed
+- .env.example
+- .gitignore
+- DEPLOY.md
+- README.md
+- app/aidetect/engine.py
+- app/aidetect/llm_judge.py
+- app/aidetect/lm.py
+- app/auth.py
+- app/config.py
+- app/grammar.py
+- app/main.py
+- app/plagiarism/corpus.py
+- app/plagiarism/engine.py
+- app/plagiarism/fetch.py
+- app/plagiarism/matcher.py
+- app/plagiarism/search.py
+- app/reports.py
+- app/textproc.py
+- cloudflare/schema.sql
+- cloudflare/src/worker.js
+- cloudflare/wrangler.toml
+- requirements.txt
+- static/auth.html
+- static/check.html
+- static/css/burst.css
+- static/css/mobile.css
+- static/index.html
+- static/js/checker.js
+- static/js/common.js
+- static/js/landing.js
+- static/js/me.js
+- static/js/report.js
+- static/me.html
+- static/og.html
+- static/report.html
+- tests/shot.mjs
+- tests/test_core.py
+
 ## 0.1.0 - 2026-11-21
 
 ### Changed
