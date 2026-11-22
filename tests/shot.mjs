@@ -28,7 +28,7 @@ for (let i = 0; i < 600; i++) { if (await evalJs(`(() => { try { return !!(${wai
 if (click) { for (const sel of click.split("|")) { await evalJs(`document.querySelector(${JSON.stringify(sel)})?.click(); true`); await sleep(400); } }
 await sleep(600);
 const errs = await evalJs("JSON.stringify(window.__errs || [])");
-let shot = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true }, sessionId);
+let shot = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: !process.env.VIEWPORT }, sessionId);
 if (!shot.result) shot = await send("Page.captureScreenshot", { format: "png" }, sessionId);
 const { result: { data } } = shot;
 writeFileSync(out, Buffer.from(data, "base64"));
