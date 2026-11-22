@@ -1,38 +1,0 @@
-INFO:     Started server process [59360]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-INFO:     127.0.0.1:61644 - "GET /api/health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:61107 - "GET /api/health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59380 - "GET /api/health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58312 - "GET /api/health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62554 - "GET /api/health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62603 - "GET /api/health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62673 - "GET /api/health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:62740 - "GET /api/health HTTP/1.1" 200 OK
-Loading weights:   0%|          | 0/76 [00:00<?, ?it/s]Loading weights:  11%|#         | 8/76 [00:00<00:00, 68.00it/s]Loading weights:  33%|###2      | 25/76 [00:00<00:00, 122.76it/s]Loading weights:  50%|#####     | 38/76 [00:00<00:00, 42.37it/s] Loading weights: 100%|##########| 76/76 [00:00<00:00, 96.68it/s]
-2026-11-21 16:53:43,633 INFO app.aidetect.lm: LM scorer ready on cpu (K:\burstai\models\distilgpt2 / -)
-INFO:     127.0.0.1:56537 - "GET /api/health HTTP/1.1" 200 OK
-INFO:     127.0.0.1:56540 - "GET /api/health HTTP/1.1" 200 OK
-INFO:     2a09:bac5:3f13:1aaa::2a8:22:0 - "GET /api/health HTTP/1.1" 200 OK
-2026-11-21 16:53:47,487 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2 "HTTP/1.1 200 OK"
-INFO:     127.0.0.1:56568 - "GET / HTTP/1.1" 404 Not Found
-2026-11-21 16:53:49,553 INFO sentence_transformers.base.model: Loading SentenceTransformer model from sentence-transformers/all-MiniLM-L6-v2.
-Loading weights:   0%|          | 0/103 [00:00<?, ?it/s]Loading weights:  34%|###3      | 35/103 [00:00<00:00, 343.58it/s]Loading weights: 100%|##########| 103/103 [00:00<00:00, 678.16it/s]
-2026-11-21 16:53:54,352 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
-2026-11-21 16:53:54,649 INFO httpx2: HTTP Request: GET https://huggingface.co/api/models/sentence-transformers/all-MiniLM-L6-v2/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
-2026-11-21 16:53:55,257 INFO httpx2: HTTP Request: HEAD https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/2_Normalize/config.json "HTTP/1.1 404 Not Found"
-Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
-2026-11-21 16:53:55,258 WARNING huggingface_hub.utils._http: Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
-2026-11-21 16:53:55,266 INFO app.plagiarism.matcher: loaded embedder sentence-transformers/all-MiniLM-L6-v2
-INFO:     2a06:98c0:3600::103:0 - "POST /api/extract HTTP/1.1" 200 OK
-INFO:     2a06:98c0:3600::103:0 - "GET /api/health HTTP/1.1" 200 OK
-[transformers] Token indices sequence length is longer than the specified maximum sequence length for this model (1126 > 1024). Running this sequence through the model will result in indexing errors
-2026-11-21 17:01:04,263 WARNING app.plagiarism.search: ddgs(auto) failed for '"Submit one source file per problem zipped together as RollNumber zip before"': error sending request for url (https://www.mojeek.com/search?q=%22Submit+one+source+file+per+problem
-2026-11-21 17:01:05,192 WARNING app.plagiarism.search: ddgs(auto) failed for '"SDE-1 Campus Hiring Round 1 Coding Assignment"': error sending request for url (https://www.mojeek.com/search?q=%22SDE-1+Campus+Hiring+Round+1+Coding
-2026-11-21 17:01:06,014 WARNING app.plagiarism.search: ddgs(auto) failed for '"partly working or slow solution still earns partial credit so attempt both"': error sending request for url (https://www.mojeek.com/search?q=%22partly+working+or+slow+solution+st
-2026-11-21 17:01:27,528 WARNING app.plagiarism.search: ddgs(auto) failed for '"Approach Sort the values then scan once keeping a running count"': error sending request for url (https://www.mojeek.com/search?q=%22Approach+Sort+the+values+then+scan
-2026-11-21 17:01:28,843 WARNING app.plagiarism.search: ddgs(auto) failed for '"Following the redirects from a link either ends at a landing page"': error sending request for url (https://www.mojeek.com/search?q=%22Following+the+redirects+from+a+lin
-2026-11-21 17:01:31,896 WARNING app.plagiarism.search: ddgs(auto) failed for '"order given either the landing page and the number of redirects separated"': error sending request for url (https://www.mojeek.com/search?q=%22order+given+either+the+landing+pag
-2026-11-21 17:01:31,928 WARNING app.plagiarism.search: search phase exceeded 60.0s; using what came back
-2026-11-21 17:01:50,895 WARNING app.plagiarism.search: ddgs(auto) failed for '"the input from standard input and print the answer to standard output"': error sending request for url (https://www.mojeek.com/search?q=%22the+input+from+standard+input+and+

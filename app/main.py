@@ -100,11 +100,13 @@ async def health():
 
 
 @app.post("/api/check")
-async def check(req: CheckRequest):
+async def check(req: CheckRequest, request: Request):
     text = req.text.replace("\r\n", "\n")
     if len(text) > config.MAX_INPUT_CHARS:
         raise HTTPException(413, f"Text too long (max {config.MAX_INPUT_CHARS} characters)")
     o = req.options
+    # the user's own Gemini key, from the browser (never stored); header wins over body
+    gemini_key = (request.headers.get("x-gemini-key", "") or o.gemini_key or "").strip() or None
     sents = split_sentences(text)
     if not sents:
         raise HTTPException(400, "No analysable text found")
